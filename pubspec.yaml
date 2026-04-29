@@ -1,0 +1,94 @@
+name: cropsense
+description: Pakistan Smart Farm Intelligence Platform — cross-platform web & desktop.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # ── State Management ──────────────────────────────────────────
+  flutter_riverpod: ^3.0.0-dev.3        # Riverpod 2.x — AsyncNotifier pattern
+  riverpod_annotation: ^3.0.0-dev.3     # Code-gen annotations for Riverpod
+
+  # ── Navigation ────────────────────────────────────────────────
+  go_router: ^17.2.2              # Deep linking + web URL support
+
+  # ── Networking ────────────────────────────────────────────────
+  dio: ^5.4.3                     # HTTP client
+  retrofit: ^4.1.0                # Type-safe REST API calls on top of Dio
+  pretty_dio_logger: ^1.3.1       # Logs all HTTP requests in debug mode
+
+  # ── Data / Serialization ──────────────────────────────────────
+  freezed_annotation: ^2.4.1      # Immutable model classes
+  json_annotation: ^4.9.0         # JSON serialization
+
+  # ── Local Storage / Cache ─────────────────────────────────────
+  hive: ^2.2.3                    # Key-value store (web: IndexedDB, desktop: file)
+  hive_flutter: ^1.1.0            # Flutter adapter for Hive
+
+  # ── Charts ────────────────────────────────────────────────────
+  fl_chart: ^1.2.0               # Line, bar, scatter, pie charts
+
+  # ── Maps ──────────────────────────────────────────────────────
+  flutter_map: ^8.3.0             # Leaflet.js wrapper for Flutter
+  latlong2: ^0.9.1                # LatLng coordinates (required by flutter_map)
+
+  # ── Animation ─────────────────────────────────────────────────
+  flutter_animate: ^4.5.0         # Declarative animations for cards, counters
+
+  # ── Fonts ─────────────────────────────────────────────────────
+  google_fonts: ^8.1.0            # Inter + Space Grotesk from Google Fonts
+
+  # ── PDF Generation ────────────────────────────────────────────
+  pdf: ^3.11.1                    # Generate PDF reports on device
+  printing: ^5.13.2               # Print or share PDFs
+
+  # ── Connectivity ──────────────────────────────────────────────
+  connectivity_plus: ^7.1.1       # Detect online/offline state
+
+  # ── Environment Variables ─────────────────────────────────────
+  flutter_dotenv: ^6.0.1          # Read .env file (API base URL, keys)
+
+  # ── Shimmer Loading ───────────────────────────────────────────
+  shimmer: ^3.0.0                 # Skeleton loading placeholders
+
+  # ── Icons ─────────────────────────────────────────────────────
+  # Material icons are included with Flutter — no extra package needed
+  # We use Icons.* from Flutter's built-in set
+
+  # ── Utilities ─────────────────────────────────────────────────
+  intl: ^0.20.2                   # Date/number formatting + localization
+  equatable: ^2.0.5               # Value equality for Dart objects
+  logger: ^2.3.0                  # Clean, colored console logs
+  uuid: ^4.4.0                    # Generate unique IDs
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0           # Dart linting rules
+
+  # ── Code Generation ───────────────────────────────────────────
+  build_runner: ^2.4.9            # Runs code generators
+  freezed: ^2.5.2                 # Generates immutable model boilerplate
+  json_serializable: ^6.8.0       # Generates fromJson/toJson methods
+  retrofit_generator: ^8.1.0      # Generates Retrofit API client code
+  riverpod_generator: ^3.0.0-dev.11      # Generates Riverpod provider boilerplate
+  hive_generator: ^2.0.1          # Generates Hive type adapters
+
+flutter:
+  uses-material-design: true
+
+  # ── Assets ────────────────────────────────────────────────────
+  assets:
+    - assets/geojson/             # Pakistan districts GeoJSON map data
+    - assets/images/              # Logo and static images
+    - .env                        # Environment variables file
+
+  # ── Fonts ─────────────────────────────────────────────────────
+  # Using google_fonts package — no manual font files needed

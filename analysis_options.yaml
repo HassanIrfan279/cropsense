@@ -1,0 +1,32 @@
+# analysis_options.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Dart linting configuration for CropSense.
+# These rules help catch bugs and enforce clean code style.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Exclude auto-generated files from linting (they're not written by us)
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.retrofit.dart"
+
+  errors:
+    # Treat these as warnings, not errors, so development isn't blocked
+    invalid_annotation_target: ignore
+
+linter:
+  rules:
+    # Good practices
+    prefer_single_quotes: true          # Use 'string' not "string"
+    prefer_const_constructors: true     # Use const where possible (performance)
+    prefer_const_declarations: true
+    avoid_print: true                   # Use logger package instead of print()
+    use_super_parameters: true          # Modern Dart syntax for constructors
+    prefer_final_locals: true           # Declare local vars as final if not reassigned
+    unnecessary_this: true
+
+    # Not enforced (too strict for a student project)
+    public_member_api_docs: false       # Don't require docs on every public member
+    always_use_package_imports: false
