@@ -15,6 +15,8 @@ import {q}package:cropsense/screens/dashboard/dashboard_screen.dart{q};
 import {q}package:cropsense/screens/map/map_screen.dart{q};
 import {q}package:cropsense/screens/analytics/analytics_screen.dart{q};
 import {q}package:cropsense/screens/ai_advisor/ai_advisor_screen.dart{q};
+import {q}package:cropsense/screens/crop_calendar/crop_calendar_screen.dart{q};
+import {q}package:cropsense/screens/reports/reports_screen.dart{q};
 
 final apiServiceProvider = Provider{lt}ApiService{gt}((ref) => ApiService());
 final cacheServiceProvider = Provider{lt}CacheService{gt}((ref) => cacheService);
@@ -48,20 +50,12 @@ final _router = GoRouter(
         GoRoute(
           path: {q}/crop-calendar{q},
           name: {q}crop-calendar{q},
-          builder: (context, state) => const _PlaceholderScreen(
-            title: {q}Crop Calendar{q},
-            icon: Icons.calendar_month_rounded,
-            color: Color(0xFF8BC34A),
-          ),
+          builder: (context, state) => const CropCalendarScreen(),
         ),
         GoRoute(
           path: {q}/reports{q},
           name: {q}reports{q},
-          builder: (context, state) => const _PlaceholderScreen(
-            title: {q}Reports{q},
-            icon: Icons.picture_as_pdf_rounded,
-            color: Color(0xFFE65100),
-          ),
+          builder: (context, state) => const ReportsScreen(),
         ),
       ],
     ),
@@ -91,7 +85,10 @@ class _AppShell extends StatefulWidget {{
 }}
 
 class _AppShellState extends State{lt}_AppShell{gt} {{
-  final _routes = [{q}/{q}, {q}/map{q}, {q}/analytics{q}, {q}/ai-advisor{q}, {q}/crop-calendar{q}, {q}/reports{q}];
+  final _routes = [
+    {q}/{q}, {q}/map{q}, {q}/analytics{q}, {q}/ai-advisor{q},
+    {q}/crop-calendar{q}, {q}/reports{q},
+  ];
 
   int _currentIndex(BuildContext context) {{
     final location = GoRouterState.of(context).uri.toString();
@@ -153,7 +150,8 @@ class _AppShellState extends State{lt}_AppShell{gt} {{
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Icon(Icons.agriculture, color: Colors.white, size: 18),
+              child: const Icon(Icons.agriculture,
+                  color: Colors.white, size: 18),
             ),
             const SizedBox(width: 10),
             const Text({q}CropSense{q}),
@@ -164,27 +162,44 @@ class _AppShellState extends State{lt}_AppShell{gt} {{
           child: Column(children: [
             const SizedBox(height: 60),
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text({q}CropSense{q}, style: TextStyle(
-                  color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
+              padding: EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 8),
+              child: Text({q}CropSense{q},
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700)),
             ),
             const Divider(color: Colors.white24),
             ...List.generate(destinations.length, (i) {{
-              final labels = [{q}Dashboard{q}, {q}Risk Map{q}, {q}Analytics{q},
-                  {q}AI Advisor{q}, {q}Calendar{q}, {q}Reports{q}];
+              final labels = [
+                {q}Dashboard{q}, {q}Risk Map{q}, {q}Analytics{q},
+                {q}AI Advisor{q}, {q}Calendar{q}, {q}Reports{q},
+              ];
               final icons = [
-                Icons.dashboard_rounded, Icons.map_rounded,
-                Icons.bar_chart_rounded, Icons.psychology_rounded,
-                Icons.calendar_month_rounded, Icons.picture_as_pdf_rounded,
+                Icons.dashboard_rounded,
+                Icons.map_rounded,
+                Icons.bar_chart_rounded,
+                Icons.psychology_rounded,
+                Icons.calendar_month_rounded,
+                Icons.picture_as_pdf_rounded,
               ];
               return ListTile(
                 leading: Icon(icons[i],
-                    color: idx == i ? const Color(0xFF8BC34A) : Colors.white70),
-                title: Text(labels[i], style: TextStyle(
-                    color: idx == i ? const Color(0xFF8BC34A) : Colors.white70,
-                    fontWeight: idx == i ? FontWeight.w600 : FontWeight.normal)),
+                    color: idx == i
+                        ? const Color(0xFF8BC34A)
+                        : Colors.white70),
+                title: Text(labels[i],
+                    style: TextStyle(
+                        color: idx == i
+                            ? const Color(0xFF8BC34A)
+                            : Colors.white70,
+                        fontWeight: idx == i
+                            ? FontWeight.w600
+                            : FontWeight.normal)),
                 selected: idx == i,
-                selectedTileColor: Colors.white.withValues(alpha: 0.1),
+                selectedTileColor:
+                    Colors.white.withValues(alpha: 0.1),
                 onTap: () {{
                   Navigator.pop(context);
                   _onTap(context, i);
@@ -218,62 +233,27 @@ class _AppShellState extends State{lt}_AppShell{gt} {{
               ),
               if (isWide) ...[
                 const SizedBox(height: 8),
-                const Text({q}CropSense{q}, style: TextStyle(
-                    color: Colors.white, fontSize: 13,
-                    fontWeight: FontWeight.w700)),
+                const Text({q}CropSense{q},
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
               ],
             ]),
           ),
           destinations: destinations,
           onDestinationSelected: (i) => _onTap(context, i),
         ),
-        Container(width: 1, color: Colors.white.withValues(alpha: 0.1)),
+        Container(
+            width: 1,
+            color: Colors.white.withValues(alpha: 0.1)),
         Expanded(child: widget.child),
       ]),
     );
   }}
 }}
-
-class _PlaceholderScreen extends StatelessWidget {{
-  final String title;
-  final IconData icon;
-  final Color color;
-  const _PlaceholderScreen({{
-    required this.title,
-    required this.icon,
-    required this.color,
-  }});
-
-  @override
-  Widget build(BuildContext context) {{
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAF7),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(icon, color: color, size: 40),
-            ),
-            const SizedBox(height: 20),
-            Text(title, style: TextStyle(
-                fontSize: 28, fontWeight: FontWeight.w700, color: color)),
-            const SizedBox(height: 8),
-            Text({q}Coming Soon{q}, style: TextStyle(
-                fontSize: 14, color: Colors.grey[500])),
-          ],
-        ),
-      ),
-    );
-  }}
-}}
 """
 
-with open('lib' + bs + 'app.dart', 'w', encoding='utf-8') as f:
+with open('flutter_app' + bs + 'lib' + bs + 'app.dart', 'w', encoding='utf-8') as f:
     f.write(content)
 print('app.dart written successfully!')

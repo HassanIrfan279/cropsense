@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cropsense/core/constants.dart';
 import 'package:cropsense/core/theme.dart';
+
 class SymptomSelector extends StatelessWidget {
   final List<String> selected;
   final ValueChanged<String> onToggle;
   const SymptomSelector({super.key, required this.selected, required this.onToggle});
+
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
