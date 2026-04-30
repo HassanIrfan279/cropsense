@@ -1,0 +1,65 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "district": "lahore", "name": "Lahore", "province": "Punjab" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [74.01, 31.75], [74.65, 31.75], [74.65, 31.25], [74.01, 31.25], [74.01, 31.75]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "district": "faisalabad", "name": "Faisalabad", "province": "Punjab" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [72.80, 31.70], [73.50, 31.70], [73.50, 31.20], [72.80, 31.20], [72.80, 31.70]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "district": "multan", "name": "Multan", "province": "Punjab" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [71.10, 30.50], [71.80, 30.50], [71.80, 29.90], [71.10, 29.90], [71.10, 30.50]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "district": "karachi", "name": "Karachi", "province": "Sindh" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [66.70, 25.20], [67.60, 25.20], [67.60, 24.60], [66.70, 24.60], [66.70, 25.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "district": "peshawar", "name": "Peshawar", "province": "Khyber Pakhtunkhwa" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [71.30, 34.20], [71.80, 34.20], [71.80, 33.80], [71.30, 33.80], [71.30, 34.20]
+        ]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "district": "quetta", "name": "Quetta", "province": "Balochistan" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [66.70, 30.40], [67.20, 30.40], [67.20, 29.90], [66.70, 29.90], [66.70, 30.40]
+        ]]
+      }
+    }
+  ]
+}
