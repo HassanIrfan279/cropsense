@@ -1,65 +1,41 @@
 {
   "type": "FeatureCollection",
   "features": [
-    {
-      "type": "Feature",
-      "properties": { "district": "lahore", "name": "Lahore", "province": "Punjab" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [74.01, 31.75], [74.65, 31.75], [74.65, 31.25], [74.01, 31.25], [74.01, 31.75]
-        ]]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": { "district": "faisalabad", "name": "Faisalabad", "province": "Punjab" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [72.80, 31.70], [73.50, 31.70], [73.50, 31.20], [72.80, 31.20], [72.80, 31.70]
-        ]]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": { "district": "multan", "name": "Multan", "province": "Punjab" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [71.10, 30.50], [71.80, 30.50], [71.80, 29.90], [71.10, 29.90], [71.10, 30.50]
-        ]]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": { "district": "karachi", "name": "Karachi", "province": "Sindh" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [66.70, 25.20], [67.60, 25.20], [67.60, 24.60], [66.70, 24.60], [66.70, 25.20]
-        ]]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": { "district": "peshawar", "name": "Peshawar", "province": "Khyber Pakhtunkhwa" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [71.30, 34.20], [71.80, 34.20], [71.80, 33.80], [71.30, 33.80], [71.30, 34.20]
-        ]]
-      }
-    },
-    {
-      "type": "Feature",
-      "properties": { "district": "quetta", "name": "Quetta", "province": "Balochistan" },
-      "geometry": {
-        "type": "Polygon",
-        "coordinates": [[
-          [66.70, 30.40], [67.20, 30.40], [67.20, 29.90], [66.70, 29.90], [66.70, 30.40]
-        ]]
-      }
-    }
+    {"type":"Feature","properties":{"district":"lahore","name":"Lahore"},"geometry":{"type":"Polygon","coordinates":[[[74.01,31.38],[74.25,31.35],[74.70,31.37],[74.72,31.62],[74.55,31.75],[74.20,31.78],[74.00,31.65],[73.98,31.45],[74.01,31.38]]]}},
+    {"type":"Feature","properties":{"district":"faisalabad","name":"Faisalabad"},"geometry":{"type":"Polygon","coordinates":[[[72.55,31.10],[73.00,31.08],[73.45,31.12],[73.50,31.65],[73.20,31.72],[72.70,31.68],[72.50,31.35],[72.55,31.10]]]}},
+    {"type":"Feature","properties":{"district":"multan","name":"Multan"},"geometry":{"type":"Polygon","coordinates":[[[71.00,29.85],[71.50,29.80],[72.10,29.88],[72.15,30.55],[71.80,30.75],[71.20,30.70],[70.90,30.35],[71.00,29.85]]]}},
+    {"type":"Feature","properties":{"district":"rawalpindi","name":"Rawalpindi"},"geometry":{"type":"Polygon","coordinates":[[[72.50,33.15],[73.00,33.00],[73.60,33.10],[73.55,33.85],[73.15,34.00],[72.60,33.90],[72.45,33.50],[72.50,33.15]]]}},
+    {"type":"Feature","properties":{"district":"gujranwala","name":"Gujranwala"},"geometry":{"type":"Polygon","coordinates":[[[73.80,31.92],[74.25,31.88],[74.55,31.95],[74.58,32.50],[74.30,32.58],[73.85,32.52],[73.75,32.15],[73.80,31.92]]]}},
+    {"type":"Feature","properties":{"district":"sialkot","name":"Sialkot"},"geometry":{"type":"Polygon","coordinates":[[[74.30,32.38],[74.60,32.32],[75.20,32.42],[75.22,32.88],[74.90,32.98],[74.40,32.92],[74.25,32.62],[74.30,32.38]]]}},
+    {"type":"Feature","properties":{"district":"bahawalpur","name":"Bahawalpur"},"geometry":{"type":"Polygon","coordinates":[[[70.50,28.42],[71.20,28.38],[72.30,28.50],[72.40,29.20],[72.10,29.90],[71.60,30.10],[71.00,29.85],[70.60,29.30],[70.45,28.82],[70.50,28.42]]]}},
+    {"type":"Feature","properties":{"district":"sargodha","name":"Sargodha"},"geometry":{"type":"Polygon","coordinates":[[[72.00,31.65],[72.50,31.60],[73.10,31.70],[73.12,32.50],[72.85,32.65],[72.10,32.58],[71.95,32.10],[72.00,31.65]]]}},
+    {"type":"Feature","properties":{"district":"sheikhupura","name":"Sheikhupura"},"geometry":{"type":"Polygon","coordinates":[[[73.70,31.48],[74.00,31.45],[74.28,31.50],[74.26,31.90],[74.00,31.97],[73.72,31.90],[73.65,31.62],[73.70,31.48]]]}},
+    {"type":"Feature","properties":{"district":"jhang","name":"Jhang"},"geometry":{"type":"Polygon","coordinates":[[[71.75,30.90],[72.30,30.88],[72.80,30.95],[72.85,31.65],[72.55,31.78],[71.90,31.72],[71.70,31.30],[71.75,30.90]]]}},
+    {"type":"Feature","properties":{"district":"vehari","name":"Vehari"},"geometry":{"type":"Polygon","coordinates":[[[71.80,29.55],[72.35,29.50],[72.80,29.60],[72.82,30.40],[72.50,30.52],[71.90,30.45],[71.75,30.00],[71.80,29.55]]]}},
+    {"type":"Feature","properties":{"district":"sahiwal","name":"Sahiwal"},"geometry":{"type":"Polygon","coordinates":[[[72.80,30.30],[73.20,30.25],[73.55,30.32],[73.58,31.05],[73.30,31.15],[72.85,31.08],[72.75,30.65],[72.80,30.30]]]}},
+    {"type":"Feature","properties":{"district":"okara","name":"Okara"},"geometry":{"type":"Polygon","coordinates":[[[73.28,30.42],[73.60,30.38],[74.00,30.48],[74.02,31.12],[73.72,31.22],[73.30,31.15],[73.22,30.78],[73.28,30.42]]]}},
+    {"type":"Feature","properties":{"district":"kasur","name":"Kasur"},"geometry":{"type":"Polygon","coordinates":[[[74.28,30.90],[74.60,30.85],[74.95,30.92],[74.98,31.48],[74.72,31.55],[74.30,31.52],[74.22,31.15],[74.28,30.90]]]}},
+    {"type":"Feature","properties":{"district":"karachi","name":"Karachi"},"geometry":{"type":"Polygon","coordinates":[[[66.72,24.55],[67.15,24.48],[67.55,24.58],[67.58,25.18],[67.28,25.35],[66.82,25.28],[66.68,24.92],[66.72,24.55]]]}},
+    {"type":"Feature","properties":{"district":"hyderabad","name":"Hyderabad"},"geometry":{"type":"Polygon","coordinates":[[[67.85,25.05],[68.30,25.00],[68.85,25.08],[68.88,25.75],[68.55,25.92],[67.98,25.85],[67.80,25.42],[67.85,25.05]]]}},
+    {"type":"Feature","properties":{"district":"sukkur","name":"Sukkur"},"geometry":{"type":"Polygon","coordinates":[[[68.55,27.40],[69.00,27.35],[69.45,27.42],[69.48,28.00],[69.20,28.12],[68.65,28.08],[68.48,27.68],[68.55,27.40]]]}},
+    {"type":"Feature","properties":{"district":"larkana","name":"Larkana"},"geometry":{"type":"Polygon","coordinates":[[[67.78,27.28],[68.22,27.22],[68.65,27.32],[68.68,27.92],[68.38,28.05],[67.92,27.98],[67.72,27.62],[67.78,27.28]]]}},
+    {"type":"Feature","properties":{"district":"nawabshah","name":"Nawabshah"},"geometry":{"type":"Polygon","coordinates":[[[67.95,25.85],[68.45,25.80],[68.90,25.90],[68.92,26.60],[68.62,26.75],[68.08,26.68],[67.88,26.25],[67.95,25.85]]]}},
+    {"type":"Feature","properties":{"district":"mirpur-khas","name":"Mirpur Khas"},"geometry":{"type":"Polygon","coordinates":[[[68.72,25.05],[69.12,25.00],[69.65,25.10],[69.68,25.85],[69.38,26.00],[68.82,25.92],[68.65,25.45],[68.72,25.05]]]}},
+    {"type":"Feature","properties":{"district":"tharparkar","name":"Tharparkar"},"geometry":{"type":"Polygon","coordinates":[[[69.50,24.00],[70.30,23.95],[71.10,24.05],[71.12,25.50],[70.75,25.72],[69.85,25.65],[69.45,25.12],[69.50,24.00]]]}},
+    {"type":"Feature","properties":{"district":"kashmore","name":"Kashmore"},"geometry":{"type":"Polygon","coordinates":[[[69.02,27.95],[69.50,27.88],[70.05,27.98],[70.08,28.80],[69.72,28.95],[69.15,28.88],[68.95,28.35],[69.02,27.95]]]}},
+    {"type":"Feature","properties":{"district":"peshawar","name":"Peshawar"},"geometry":{"type":"Polygon","coordinates":[[[71.15,33.72],[71.60,33.68],[71.95,33.75],[71.98,34.18],[71.72,34.35],[71.22,34.28],[71.08,33.98],[71.15,33.72]]]}},
+    {"type":"Feature","properties":{"district":"mardan","name":"Mardan"},"geometry":{"type":"Polygon","coordinates":[[[71.92,33.98],[72.30,33.92],[72.55,33.98],[72.58,34.48],[72.32,34.62],[71.98,34.55],[71.88,34.20],[71.92,33.98]]]}},
+    {"type":"Feature","properties":{"district":"swat","name":"Swat"},"geometry":{"type":"Polygon","coordinates":[[[72.05,34.58],[72.40,34.50],[72.88,34.62],[72.92,35.68],[72.65,35.88],[72.12,35.75],[71.95,35.18],[72.05,34.58]]]}},
+    {"type":"Feature","properties":{"district":"abbottabad","name":"Abbottabad"},"geometry":{"type":"Polygon","coordinates":[[[72.88,33.88],[73.25,33.82],[73.72,33.92],[73.75,34.42],[73.48,34.58],[72.95,34.50],[72.82,34.12],[72.88,33.88]]]}},
+    {"type":"Feature","properties":{"district":"charsadda","name":"Charsadda"},"geometry":{"type":"Polygon","coordinates":[[[71.58,33.98],[71.88,33.92],[72.08,33.98],[72.10,34.32],[71.88,34.42],[71.60,34.38],[71.52,34.12],[71.58,33.98]]]}},
+    {"type":"Feature","properties":{"district":"dera-ismail-khan","name":"Dera Ismail Khan"},"geometry":{"type":"Polygon","coordinates":[[[70.45,31.42],[70.90,31.35],[71.35,31.45],[71.38,32.28],[71.05,32.45],[70.55,32.38],[70.38,31.85],[70.45,31.42]]]}},
+    {"type":"Feature","properties":{"district":"quetta","name":"Quetta"},"geometry":{"type":"Polygon","coordinates":[[[66.50,29.78],[67.05,29.72],[67.45,29.82],[67.48,30.55],[67.18,30.72],[66.62,30.65],[66.42,30.18],[66.50,29.78]]]}},
+    {"type":"Feature","properties":{"district":"turbat","name":"Turbat"},"geometry":{"type":"Polygon","coordinates":[[[62.28,25.58],[62.82,25.52],[63.62,25.62],[63.65,26.42],[63.25,26.58],[62.38,26.48],[62.18,25.98],[62.28,25.58]]]}},
+    {"type":"Feature","properties":{"district":"khuzdar","name":"Khuzdar"},"geometry":{"type":"Polygon","coordinates":[[[65.85,27.20],[66.35,27.15],[67.05,27.25],[67.08,28.42],[66.72,28.58],[66.05,28.48],[65.75,27.88],[65.85,27.20]]]}},
+    {"type":"Feature","properties":{"district":"hub","name":"Hub"},"geometry":{"type":"Polygon","coordinates":[[[66.22,24.88],[66.72,24.85],[67.02,24.92],[67.05,25.45],[66.78,25.58],[66.28,25.52],[66.12,25.12],[66.22,24.88]]]}},
+    {"type":"Feature","properties":{"district":"loralai","name":"Loralai"},"geometry":{"type":"Polygon","coordinates":[[[68.22,30.00],[68.65,29.95],[69.28,30.05],[69.32,30.88],[68.98,31.02],[68.35,30.95],[68.15,30.45],[68.22,30.00]]]}},
+    {"type":"Feature","properties":{"district":"zhob","name":"Zhob"},"geometry":{"type":"Polygon","coordinates":[[[69.08,31.02],[69.55,30.95],[70.28,31.05],[70.32,31.98],[69.95,32.15],[69.22,32.08],[69.00,31.52],[69.08,31.02]]]}},
+    {"type":"Feature","properties":{"district":"naseerabad","name":"Naseerabad"},"geometry":{"type":"Polygon","coordinates":[[[67.88,27.92],[68.35,27.85],[68.85,27.95],[68.88,28.82],[68.55,28.98],[68.02,28.92],[67.80,28.42],[67.88,27.92]]]}},
+    {"type":"Feature","properties":{"district":"sibi","name":"Sibi"},"geometry":{"type":"Polygon","coordinates":[[[67.42,29.02],[67.88,28.95],[68.38,29.05],[68.42,30.00],[68.08,30.15],[67.52,30.08],[67.32,29.52],[67.42,29.02]]]}}
   ]
 }

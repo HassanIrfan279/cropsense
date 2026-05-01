@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:cropsense/core/theme.dart';
 import 'package:cropsense/data/services/api_service.dart';
 import 'package:cropsense/data/services/cache_service.dart';
@@ -15,42 +16,40 @@ import 'package:cropsense/screens/reports/reports_screen.dart';
 final apiServiceProvider = Provider<ApiService>((ref) => ApiService());
 final cacheServiceProvider = Provider<CacheService>((ref) => cacheService);
 
+Page<void> _fadePage(GoRouterState state, Widget child) {
+  return CustomTransitionPage(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (_, animation, __, child) => FadeTransition(
+      opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0.015, 0), end: Offset.zero)
+            .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+        child: child,
+      ),
+    ),
+  );
+}
+
 final _router = GoRouter(
   initialLocation: '/',
   routes: [
     ShellRoute(
       builder: (context, state, child) => _AppShell(child: child),
       routes: [
-        GoRoute(
-          path: '/',
-          name: 'dashboard',
-          builder: (context, state) => const DashboardScreen(),
-        ),
-        GoRoute(
-          path: '/map',
-          name: 'map',
-          builder: (context, state) => const MapScreen(),
-        ),
-        GoRoute(
-          path: '/analytics',
-          name: 'analytics',
-          builder: (context, state) => const AnalyticsScreen(),
-        ),
-        GoRoute(
-          path: '/ai-advisor',
-          name: 'ai-advisor',
-          builder: (context, state) => const AIAdvisorScreen(),
-        ),
-        GoRoute(
-          path: '/crop-calendar',
-          name: 'crop-calendar',
-          builder: (context, state) => const CropCalendarScreen(),
-        ),
-        GoRoute(
-          path: '/reports',
-          name: 'reports',
-          builder: (context, state) => const ReportsScreen(),
-        ),
+        GoRoute(path: '/', name: 'dashboard',
+            pageBuilder: (c, s) => _fadePage(s, const DashboardScreen())),
+        GoRoute(path: '/map', name: 'map',
+            pageBuilder: (c, s) => _fadePage(s, const MapScreen())),
+        GoRoute(path: '/analytics', name: 'analytics',
+            pageBuilder: (c, s) => _fadePage(s, const AnalyticsScreen())),
+        GoRoute(path: '/ai-advisor', name: 'ai-advisor',
+            pageBuilder: (c, s) => _fadePage(s, const AIAdvisorScreen())),
+        GoRoute(path: '/crop-calendar', name: 'crop-calendar',
+            pageBuilder: (c, s) => _fadePage(s, const CropCalendarScreen())),
+        GoRoute(path: '/reports', name: 'reports',
+            pageBuilder: (c, s) => _fadePage(s, const ReportsScreen())),
       ],
     ),
   ],
@@ -77,7 +76,9 @@ class _AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<_AppShell> {
-  final _routes = ['/', '/map', '/analytics', '/ai-advisor', '/crop-calendar', '/reports'];
+  final _routes = [
+    '/', '/map', '/analytics', '/ai-advisor', '/crop-calendar', '/reports'
+  ];
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
@@ -85,9 +86,7 @@ class _AppShellState extends State<_AppShell> {
     return idx < 0 ? 0 : idx;
   }
 
-  void _onTap(BuildContext context, int index) {
-    context.go(_routes[index]);
-  }
+  void _onTap(BuildContext context, int index) => context.go(_routes[index]);
 
   @override
   Widget build(BuildContext context) {
@@ -95,66 +94,291 @@ class _AppShellState extends State<_AppShell> {
     final isCompact = width < 800;
     final isWide = width >= 1200;
     final idx = _currentIndex(context);
-    const destinations = [
-      NavigationRailDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard_rounded), label: Text('Dashboard')),
-      NavigationRailDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: Text('Risk Map')),
-      NavigationRailDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.bar_chart_rounded), label: Text('Analytics')),
-      NavigationRailDestination(icon: Icon(Icons.psychology_outlined), selectedIcon: Icon(Icons.psychology_rounded), label: Text('AI Advisor')),
-      NavigationRailDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month_rounded), label: Text('Calendar')),
-      NavigationRailDestination(icon: Icon(Icons.picture_as_pdf_outlined), selectedIcon: Icon(Icons.picture_as_pdf_rounded), label: Text('Reports')),
-    ];
+
     if (isCompact) {
       return Scaffold(
-        appBar: AppBar(title: const Text('CropSense')),
-        drawer: Drawer(
-          backgroundColor: const Color(0xFF1B5E20),
-          child: Column(children: [
-            const SizedBox(height: 60),
-            const Text('CropSense', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
-            const Divider(color: Colors.white24),
-            ...List.generate(destinations.length, (i) {
-              final labels = ['Dashboard', 'Risk Map', 'Analytics', 'AI Advisor', 'Calendar', 'Reports'];
-              final icons = [Icons.dashboard_rounded, Icons.map_rounded, Icons.bar_chart_rounded, Icons.psychology_rounded, Icons.calendar_month_rounded, Icons.picture_as_pdf_rounded];
-              return ListTile(
-                leading: Icon(icons[i], color: idx == i ? const Color(0xFF8BC34A) : Colors.white70),
-                title: Text(labels[i], style: TextStyle(color: idx == i ? const Color(0xFF8BC34A) : Colors.white70)),
-                selected: idx == i,
-                selectedTileColor: Colors.white.withValues(alpha: 0.1),
-                onTap: () { Navigator.pop(context); _onTap(context, i); },
-              );
-            }),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0D3B12),
+          elevation: 0,
+          title: Row(children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+              ),
+              child: const Icon(Icons.agriculture_rounded, color: Colors.white, size: 15),
+            ),
+            const SizedBox(width: 10),
+            Text('CropSense', style: GoogleFonts.spaceGrotesk(
+              color: Colors.white, fontSize: 17,
+              fontWeight: FontWeight.w700, letterSpacing: -0.3,
+            )),
           ]),
         ),
+        drawer: _CompactDrawer(selectedIndex: idx,
+            onTap: (i) => _onTap(context, i)),
         body: widget.child,
       );
     }
+
     return Scaffold(
       body: Row(children: [
-        NavigationRail(
+        _PremiumNavRail(
           selectedIndex: idx,
           extended: isWide,
-          minWidth: 72,
-          minExtendedWidth: 200,
-          leading: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.agriculture, color: Colors.white, size: 24),
-              ),
-              if (isWide) ...[
-                const SizedBox(height: 8),
-                const Text('CropSense', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
-              ],
-            ]),
-          ),
-          destinations: destinations,
           onDestinationSelected: (i) => _onTap(context, i),
         ),
-        Container(width: 1, color: Colors.white.withValues(alpha: 0.1)),
         Expanded(child: widget.child),
       ]),
+    );
+  }
+}
+
+// ── Compact drawer (mobile / narrow layout) ───────────────────────────────────
+class _CompactDrawer extends StatelessWidget {
+  final int selectedIndex;
+  final ValueChanged<int> onTap;
+  const _CompactDrawer({required this.selectedIndex, required this.onTap});
+
+  static const _labels = [
+    'Dashboard', 'Risk Map', 'Analytics', 'AI Advisor', 'Calendar', 'Reports'
+  ];
+  static const _icons = [
+    Icons.dashboard_rounded, Icons.map_rounded, Icons.bar_chart_rounded,
+    Icons.psychology_rounded, Icons.calendar_month_rounded,
+    Icons.picture_as_pdf_rounded,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: Container(
+        decoration: const BoxDecoration(gradient: AppGradients.navRail),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const SizedBox(height: 56),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Row(children: [
+              Container(
+                width: 38, height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+                ),
+                child: const Icon(Icons.agriculture_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('CropSense', style: GoogleFonts.spaceGrotesk(
+                  color: Colors.white, fontSize: 17,
+                  fontWeight: FontWeight.w700, letterSpacing: -0.3,
+                )),
+                Text('Pakistan Ag Intelligence', style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.45),
+                  fontSize: 10, letterSpacing: 0.3,
+                )),
+              ]),
+            ]),
+          ),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+          const SizedBox(height: 6),
+          ...List.generate(_labels.length, (i) => ListTile(
+            leading: Icon(_icons[i],
+                color: selectedIndex == i
+                    ? AppColors.limeGreen
+                    : Colors.white.withValues(alpha: 0.72)),
+            title: Text(_labels[i], style: TextStyle(
+              color: selectedIndex == i
+                  ? AppColors.limeGreen
+                  : Colors.white.withValues(alpha: 0.72),
+              fontWeight:
+                  selectedIndex == i ? FontWeight.w600 : FontWeight.w400,
+              fontSize: 14,
+            )),
+            selected: selectedIndex == i,
+            selectedTileColor: Colors.white.withValues(alpha: 0.1),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            onTap: () { Navigator.pop(context); onTap(i); },
+          )),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Premium navigation rail with gradient + hover effects ─────────────────────
+class _PremiumNavRail extends StatefulWidget {
+  final int selectedIndex;
+  final bool extended;
+  final ValueChanged<int> onDestinationSelected;
+
+  const _PremiumNavRail({
+    required this.selectedIndex,
+    required this.extended,
+    required this.onDestinationSelected,
+  });
+
+  @override
+  State<_PremiumNavRail> createState() => _PremiumNavRailState();
+}
+
+class _PremiumNavRailState extends State<_PremiumNavRail> {
+  int? _hoveredIndex;
+
+  static const _items = [
+    (Icons.dashboard_outlined,      Icons.dashboard_rounded,      'Dashboard'),
+    (Icons.map_outlined,             Icons.map_rounded,             'Risk Map'),
+    (Icons.bar_chart_outlined,       Icons.bar_chart_rounded,       'Analytics'),
+    (Icons.psychology_outlined,      Icons.psychology_rounded,      'AI Advisor'),
+    (Icons.calendar_month_outlined,  Icons.calendar_month_rounded,  'Calendar'),
+    (Icons.picture_as_pdf_outlined,  Icons.picture_as_pdf_rounded,  'Reports'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOut,
+      width: widget.extended ? 200 : 72,
+      decoration: const BoxDecoration(gradient: AppGradients.navRail),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _buildLogo(),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.08)),
+          const SizedBox(height: 6),
+          ..._items.asMap().entries.map((e) => _buildNavItem(e.key, e.value)),
+          const Spacer(),
+          _buildVersion(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogo() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.22), width: 1),
+          ),
+          child: const Icon(Icons.agriculture_rounded,
+              color: Colors.white, size: 22),
+        ),
+        if (widget.extended) ...[
+          const SizedBox(height: 10),
+          Text('CropSense', style: GoogleFonts.spaceGrotesk(
+            color: Colors.white, fontSize: 15,
+            fontWeight: FontWeight.w700, letterSpacing: -0.3,
+          )),
+          const SizedBox(height: 2),
+          Text('Pakistan Ag Intelligence', style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.42),
+            fontSize: 10, letterSpacing: 0.3,
+          )),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildNavItem(int index,
+      (IconData outIcon, IconData fillIcon, String label) item) {
+    final (iconOut, iconFill, label) = item;
+    final isSelected = widget.selectedIndex == index;
+    final isHovered = _hoveredIndex == index;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredIndex = index),
+      onExit: (_) => setState(() => _hoveredIndex = null),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => widget.onDestinationSelected(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          margin: EdgeInsets.symmetric(
+            horizontal: widget.extended ? 10 : 8,
+            vertical: 2,
+          ),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.extended ? 12 : 0,
+            vertical: 11,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.white.withValues(alpha: 0.15)
+                : isHovered
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: isSelected
+                ? Border.all(
+                    color: Colors.white.withValues(alpha: 0.18), width: 1)
+                : null,
+          ),
+          child: widget.extended
+              ? Row(children: [
+                  const SizedBox(width: 2),
+                  Icon(
+                    isSelected ? iconFill : iconOut,
+                    color: isSelected
+                        ? AppColors.limeGreen
+                        : Colors.white.withValues(alpha: 0.72),
+                    size: 21,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label, style: TextStyle(
+                      color: isSelected
+                          ? AppColors.limeGreen
+                          : Colors.white.withValues(alpha: 0.72),
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                    )),
+                  ),
+                  if (isSelected)
+                    Container(
+                      width: 5, height: 5,
+                      decoration: const BoxDecoration(
+                        color: AppColors.limeGreen, shape: BoxShape.circle),
+                    ),
+                  const SizedBox(width: 4),
+                ])
+              : Center(
+                  child: Icon(
+                    isSelected ? iconFill : iconOut,
+                    color: isSelected
+                        ? AppColors.limeGreen
+                        : Colors.white.withValues(alpha: 0.72),
+                    size: 22,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVersion() {
+    if (!widget.extended) return const SizedBox(height: 16);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text('v1.1', style: TextStyle(
+        color: Colors.white.withValues(alpha: 0.25),
+        fontSize: 11,
+      )),
     );
   }
 }

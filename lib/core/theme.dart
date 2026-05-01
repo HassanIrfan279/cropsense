@@ -196,6 +196,29 @@ abstract class AppShadows {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// GRADIENTS
+// ─────────────────────────────────────────────────────────────────────────
+abstract class AppGradients {
+  static const LinearGradient cardSubtle = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFFFFFFF), Color(0xFFF3F8F3)],
+  );
+
+  static const LinearGradient heroGreen = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF082B0B), Color(0xFF1B5E20), Color(0xFF266027)],
+  );
+
+  static const LinearGradient navRail = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF071F09), Color(0xFF1B5E20)],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // MAIN THEME BUILDER
 // This is what we pass to MaterialApp's `theme:` parameter.
 // It wires together all the colors, fonts, and component styles above.

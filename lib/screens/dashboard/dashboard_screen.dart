@@ -1,14 +1,8 @@
-// lib/screens/dashboard/dashboard_screen.dart
-//
-// CropSense Dashboard — the first screen users see.
-// Shows national KPIs, live alert ticker, and province summaries.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cropsense/core/theme.dart';
-import 'package:cropsense/core/utils.dart';
 import 'package:cropsense/screens/dashboard/widgets/kpi_card.dart';
 import 'package:cropsense/screens/dashboard/widgets/alert_ticker.dart';
 import 'package:cropsense/screens/dashboard/widgets/province_summary_card.dart';
@@ -25,184 +19,229 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.offWhite,
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(isCompact ? AppSpacing.md : AppSpacing.lg),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Page header ─────────────────────────────────────
-            _buildHeader(context),
-            const SizedBox(height: AppSpacing.lg),
+            // ── Hero section (gradient + image + KPI cards) ────────
+            _buildHero(isCompact),
 
-            // ── Alert ticker ────────────────────────────────────
-            AlertTicker(alerts: _mockAlerts),
-            const SizedBox(height: AppSpacing.lg),
+            // ── Content below the hero ─────────────────────────────
+            Padding(
+              padding: EdgeInsets.all(
+                  isCompact ? AppSpacing.md : AppSpacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AlertTicker(alerts: _mockAlerts),
+                  const SizedBox(height: AppSpacing.lg),
 
-            // ── KPI cards row ───────────────────────────────────
-            _buildKpiRow(context, isCompact),
-            const SizedBox(height: AppSpacing.lg),
+                  Row(children: [
+                    Text('Province Overview',
+                        style: AppTextStyles.headingMedium),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () => context.go('/map'),
+                      icon: const Icon(Icons.map_rounded, size: 16),
+                      label: const Text('View Map'),
+                    ),
+                  ]),
+                  const SizedBox(height: AppSpacing.md),
 
-            // ── Section title ───────────────────────────────────
-            Row(
-              children: [
-                Text('Province Overview',
-                    style: AppTextStyles.headingMedium),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => context.go('/map'),
-                  icon: const Icon(Icons.map_rounded, size: 16),
-                  label: const Text('View Map'),
-                ),
-              ],
+                  _buildProvinceGrid(isWide, isCompact),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  _buildBottomRow(context, isCompact),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
+              ),
             ),
-            const SizedBox(height: AppSpacing.md),
-
-            // ── Province cards grid ──────────────────────────────
-            _buildProvinceGrid(context, isWide, isCompact),
-            const SizedBox(height: AppSpacing.lg),
-
-            // ── Bottom row: quick actions + recent queries ───────
-            _buildBottomRow(context, isCompact),
-            const SizedBox(height: AppSpacing.xl),
           ],
         ),
       ),
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────
-  Widget _buildHeader(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
+  // ── Hero section ────────────────────────────────────────────────────────
+  Widget _buildHero(bool isCompact) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF082B0B), Color(0xFF1B5E20), Color(0xFF265A23)],
+        ),
+      ),
+      child: Stack(children: [
+        // Pakistan wheat field network image at low opacity
+        Positioned.fill(
+          child: Opacity(
+            opacity: 0.13,
+            child: Image.network(
+              'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b'
+              '?w=1400&q=80',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        ),
+        // Gradient fade at the bottom for depth
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF1B5E20).withValues(alpha: 0.55),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Hero content
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            isCompact ? 16 : 28,
+            isCompact ? 24 : 32,
+            isCompact ? 16 : 28,
+            isCompact ? 20 : 28,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Pakistan Farm Intelligence',
-                style: AppTextStyles.displayLarge,
-              ).animate().fadeIn(duration: 500.ms),
-              const SizedBox(height: 4),
-              Text(
-                'Real-time crop monitoring across 36 districts · '
-                'Updated ${DateTime.now().hour}:00 today',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.grey600,
-                ),
-              ).animate(delay: 100.ms).fadeIn(duration: 500.ms),
+              _buildHeroHeader(isCompact),
+              SizedBox(height: isCompact ? 20 : 28),
+              _buildKpiRow(isCompact),
             ],
           ),
         ),
-        // Data freshness badge
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.xs + 2,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.limeGreen.withValues(alpha: 0.15),
-            borderRadius: AppRadius.chipRadius,
-            border: Border.all(
-              color: AppColors.limeGreen.withValues(alpha: 0.5),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: AppColors.limeGreen,
-                  shape: BoxShape.circle,
-                ),
-              )
-                  .animate(onPlay: (c) => c.repeat())
-                  .scaleXY(begin: 1, end: 1.5, duration: 1000.ms)
-                  .then()
-                  .scaleXY(begin: 1.5, end: 1, duration: 1000.ms),
-              const SizedBox(width: 8),
-              Text(
-                'Live Data',
-                style: AppTextStyles.label.copyWith(
-                  color: AppColors.deepGreen,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+      ]),
     );
   }
 
-  // ── KPI Cards ─────────────────────────────────────────────────────────
-  Widget _buildKpiRow(BuildContext context, bool isCompact) {
-    final cards = [
-      const KpiCard(
+  Widget _buildHeroHeader(bool isCompact) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            'Pakistan Farm Intelligence',
+            style: AppTextStyles.displayLarge.copyWith(
+              color: Colors.white,
+              fontSize: isCompact ? 22 : 30,
+              letterSpacing: -0.5,
+            ),
+          )
+              .animate()
+              .fadeIn(duration: 600.ms)
+              .slideX(begin: -0.04, end: 0, duration: 500.ms,
+                  curve: Curves.easeOut),
+          const SizedBox(height: 6),
+          Text(
+            'Real-time crop monitoring across 36 districts · '
+            'Updated ${DateTime.now().hour}:00 today',
+            style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70),
+          ).animate(delay: 100.ms).fadeIn(duration: 600.ms),
+        ]),
+      ),
+      const SizedBox(width: 16),
+
+      // Pulsing "Live Data" badge
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: AppRadius.chipRadius,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 8, height: 8,
+            decoration: const BoxDecoration(
+              color: AppColors.limeGreen, shape: BoxShape.circle),
+          )
+              .animate(onPlay: (c) => c.repeat())
+              .scaleXY(begin: 1, end: 1.7, duration: 900.ms,
+                  curve: Curves.easeInOut)
+              .then()
+              .scaleXY(begin: 1.7, end: 1, duration: 900.ms),
+          const SizedBox(width: 8),
+          Text('Live Data',
+              style: AppTextStyles.label.copyWith(
+                color: Colors.white, fontWeight: FontWeight.w700)),
+        ]),
+      ).animate(delay: 200.ms).fadeIn(duration: 500.ms),
+    ]);
+  }
+
+  Widget _buildKpiRow(bool isCompact) {
+    const cards = [
+      KpiCard(
         label: 'DISTRICTS MONITORED',
         value: '36',
         unit: '',
         icon: Icons.location_on_rounded,
-        color: AppColors.deepGreen,
+        color: AppColors.limeGreen,
         subtitle: 'Across 4 provinces',
+        delay: 0,
       ),
-      const KpiCard(
+      KpiCard(
         label: 'AVG YIELD FORECAST',
         value: '2.1',
         unit: 't/acre',
         icon: Icons.grass_rounded,
         color: AppColors.skyBlue,
         subtitle: '↑ 8% vs last season',
+        delay: 100,
       ),
       KpiCard(
         label: 'ACTIVE ALERTS',
         value: '14',
         unit: '',
         icon: Icons.warning_rounded,
-        color: AppColors.burntOrange,
+        color: AppColors.amber,
         subtitle: '2 critical, 5 high',
         isAlert: true,
+        delay: 200,
       ),
-      const KpiCard(
+      KpiCard(
         label: 'CROPS TRACKED',
         value: '5',
         unit: '',
         icon: Icons.agriculture_rounded,
-        color: AppColors.limeGreen,
+        color: Colors.white,
         subtitle: 'Wheat · Rice · Cotton · More',
+        delay: 300,
       ),
     ];
 
     if (isCompact) {
-      // Compact: 2×2 grid
       return GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: AppSpacing.sm,
         mainAxisSpacing: AppSpacing.sm,
-        childAspectRatio: 1.6,
+        childAspectRatio: 1.45,
         children: cards,
       );
     }
 
-    // Standard/Wide: single row
     return Row(
       children: cards
-          .map((card) => Expanded(
+          .map((c) => Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(right: AppSpacing.sm),
-                  child: card,
+                  child: c,
                 ),
               ))
           .toList(),
     );
   }
 
-  // ── Province Grid ─────────────────────────────────────────────────────
-  Widget _buildProvinceGrid(
-      BuildContext context, bool isWide, bool isCompact) {
+  // ── Province grid ────────────────────────────────────────────────────────
+  Widget _buildProvinceGrid(bool isWide, bool isCompact) {
     final cards = [
       const ProvinceSummaryCard(
         province: 'Punjab',
@@ -257,105 +296,105 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  // ── Bottom Row ────────────────────────────────────────────────────────
+  // ── Bottom row ───────────────────────────────────────────────────────────
   Widget _buildBottomRow(BuildContext context, bool isCompact) {
     if (isCompact) {
-      return Column(
-        children: [
-          _buildQuickActions(context),
-          const SizedBox(height: AppSpacing.md),
-          _buildRecentQueries(context),
-        ],
-      );
+      return Column(children: [
+        _buildQuickActions(context),
+        const SizedBox(height: AppSpacing.md),
+        _buildRecentQueries(),
+      ]);
     }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 2, child: _buildQuickActions(context)),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(flex: 3, child: _buildRecentQueries(context)),
-      ],
-    );
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(flex: 2, child: _buildQuickActions(context)),
+      const SizedBox(width: AppSpacing.md),
+      Expanded(flex: 3, child: _buildRecentQueries()),
+    ]);
   }
 
   Widget _buildQuickActions(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardSurface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFF3F8F3)],
+        ),
         borderRadius: AppRadius.cardRadius,
         border: Border.all(color: AppColors.grey200),
         boxShadow: AppShadows.card,
       ),
       padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.deepGreen.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.bolt_rounded,
+                color: AppColors.deepGreen, size: 16),
+          ),
+          const SizedBox(width: 8),
           Text('Quick Actions', style: AppTextStyles.headingSmall),
-          const SizedBox(height: AppSpacing.md),
-          _ActionButton(
-            icon: Icons.psychology_rounded,
-            label: 'Get AI Advice',
-            color: AppColors.amber,
-            onTap: () => context.go('/ai-advisor'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _ActionButton(
-            icon: Icons.map_rounded,
-            label: 'View Risk Map',
-            color: AppColors.skyBlue,
-            onTap: () => context.go('/map'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _ActionButton(
-            icon: Icons.bar_chart_rounded,
-            label: 'Open Analytics',
-            color: AppColors.limeGreen,
-            onTap: () => context.go('/analytics'),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _ActionButton(
-            icon: Icons.picture_as_pdf_rounded,
+        ]),
+        const SizedBox(height: AppSpacing.md),
+        _ActionButton(icon: Icons.psychology_rounded, label: 'Get AI Advice',
+            color: AppColors.amber, onTap: () => context.go('/ai-advisor')),
+        const SizedBox(height: AppSpacing.sm),
+        _ActionButton(icon: Icons.map_rounded, label: 'View Risk Map',
+            color: AppColors.skyBlue, onTap: () => context.go('/map')),
+        const SizedBox(height: AppSpacing.sm),
+        _ActionButton(icon: Icons.bar_chart_rounded, label: 'Open Analytics',
+            color: AppColors.limeGreen, onTap: () => context.go('/analytics')),
+        const SizedBox(height: AppSpacing.sm),
+        _ActionButton(icon: Icons.picture_as_pdf_rounded,
             label: 'Generate Report',
             color: AppColors.burntOrange,
-            onTap: () => context.go('/reports'),
-          ),
-        ],
-      ),
+            onTap: () => context.go('/reports')),
+      ]),
     ).animate(delay: 200.ms).fadeIn(duration: 400.ms);
   }
 
-  Widget _buildRecentQueries(BuildContext context) {
+  Widget _buildRecentQueries() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardSurface,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFF3F8F3)],
+        ),
         borderRadius: AppRadius.cardRadius,
         border: Border.all(color: AppColors.grey200),
         boxShadow: AppShadows.card,
       ),
       padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('Recent AI Queries', style: AppTextStyles.headingSmall),
-              const Spacer(),
-              Text('Last 24 hours',
-                  style: AppTextStyles.bodySmall),
-            ],
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.deepGreen.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.history_rounded,
+                color: AppColors.deepGreen, size: 16),
           ),
-          const SizedBox(height: AppSpacing.md),
-          ..._mockQueries.map((q) => _QueryTile(query: q)),
-        ],
-      ),
+          const SizedBox(width: 8),
+          Text('Recent AI Queries', style: AppTextStyles.headingSmall),
+          const Spacer(),
+          Text('Last 24 hours', style: AppTextStyles.bodySmall),
+        ]),
+        const SizedBox(height: AppSpacing.md),
+        ..._mockQueries.map((q) => _QueryTile(query: q)),
+      ]),
     ).animate(delay: 300.ms).fadeIn(duration: 400.ms);
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// HELPER WIDGETS
-// ─────────────────────────────────────────────────────────────────────────
-class _ActionButton extends StatelessWidget {
+// ── Action button with hover scale + arrow slide ──────────────────────────────
+class _ActionButton extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color color;
@@ -369,33 +408,50 @@ class _ActionButton extends StatelessWidget {
   });
 
   @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm + 2,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: AnimatedScale(
+        scale: _hovered ? 1.015 : 1.0,
+        duration: const Duration(milliseconds: 140),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          decoration: BoxDecoration(
+            color: widget.color.withValues(alpha: _hovered ? 0.13 : 0.08),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: AppSpacing.sm),
-              Text(
-                label,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md, vertical: AppSpacing.sm + 2),
+              child: Row(children: [
+                Icon(widget.icon, color: widget.color, size: 20),
+                const SizedBox(width: AppSpacing.sm),
+                Text(widget.label,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: widget.color, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                AnimatedSlide(
+                  offset: _hovered
+                      ? const Offset(0.25, 0)
+                      : Offset.zero,
+                  duration: const Duration(milliseconds: 140),
+                  child: Icon(Icons.arrow_forward_ios_rounded,
+                      color: widget.color.withValues(alpha: 0.5), size: 14),
                 ),
-              ),
-              const Spacer(),
-              Icon(Icons.arrow_forward_ios_rounded,
-                  color: color.withValues(alpha: 0.5), size: 14),
-            ],
+              ]),
+            ),
           ),
         ),
       ),
@@ -403,6 +459,7 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+// ── Recent query tile ─────────────────────────────────────────────────────────
 class _QueryTile extends StatelessWidget {
   final _MockQuery query;
   const _QueryTile({required this.query});
@@ -411,140 +468,83 @@ class _QueryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.deepGreen.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.psychology_rounded,
-                color: AppColors.deepGreen, size: 18),
+      child: Row(children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.deepGreen.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(query.title,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    )),
-                Text(
-                  '${query.district} · ${query.crop} · ${query.time}',
-                  style: AppTextStyles.bodySmall,
-                ),
-              ],
-            ),
+          child: const Icon(Icons.psychology_rounded,
+              color: AppColors.deepGreen, size: 18),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(query.title,
+                style: AppTextStyles.bodyMedium
+                    .copyWith(fontWeight: FontWeight.w600)),
+            Text('${query.district} · ${query.crop} · ${query.time}',
+                style: AppTextStyles.bodySmall),
+          ]),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: query.riskColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(100),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: query.riskColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(100),
-            ),
-            child: Text(
-              query.risk,
-              style: TextStyle(
-                color: query.riskColor,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+          child: Text(query.risk, style: TextStyle(
+            color: query.riskColor, fontSize: 11, fontWeight: FontWeight.w600)),
+        ),
+      ]),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// MOCK DATA
-// ─────────────────────────────────────────────────────────────────────────
+// ── Mock data ─────────────────────────────────────────────────────────────────
 final _mockAlerts = [
-  const AlertTickerItem(
-    district: 'Quetta',
-    message: 'Critical drought conditions — yield forecast below 1.0 t/acre',
-    severity: 'critical',
-  ),
-  const AlertTickerItem(
-    district: 'Multan',
-    message: 'High rust risk detected — immediate fungicide recommended',
-    severity: 'high',
-  ),
-  const AlertTickerItem(
-    district: 'Karachi',
-    message: 'Extreme heat stress — NDVI dropping rapidly',
-    severity: 'high',
-  ),
-  const AlertTickerItem(
-    district: 'Tharparkar',
-    message: 'Rainfall 60% below seasonal average',
-    severity: 'critical',
-  ),
-  const AlertTickerItem(
-    district: 'Faisalabad',
-    message: 'Watch: Soil moisture declining — consider irrigation',
-    severity: 'watch',
-  ),
-  const AlertTickerItem(
-    district: 'Sukkur',
-    message: 'Pest pressure increasing — monitor cotton fields',
-    severity: 'watch',
-  ),
+  const AlertTickerItem(district: 'Quetta',
+      message: 'Critical drought conditions — yield forecast below 1.0 t/acre',
+      severity: 'critical'),
+  const AlertTickerItem(district: 'Multan',
+      message: 'High rust risk detected — immediate fungicide recommended',
+      severity: 'high'),
+  const AlertTickerItem(district: 'Karachi',
+      message: 'Extreme heat stress — NDVI dropping rapidly',
+      severity: 'high'),
+  const AlertTickerItem(district: 'Tharparkar',
+      message: 'Rainfall 60% below seasonal average',
+      severity: 'critical'),
+  const AlertTickerItem(district: 'Faisalabad',
+      message: 'Watch: Soil moisture declining — consider irrigation',
+      severity: 'watch'),
+  const AlertTickerItem(district: 'Sukkur',
+      message: 'Pest pressure increasing — monitor cotton fields',
+      severity: 'watch'),
 ];
 
 class _MockQuery {
-  final String title;
-  final String district;
-  final String crop;
-  final String time;
-  final String risk;
+  final String title, district, crop, time, risk;
   final Color riskColor;
-
   const _MockQuery({
-    required this.title,
-    required this.district,
-    required this.crop,
-    required this.time,
-    required this.risk,
-    required this.riskColor,
+    required this.title, required this.district,
+    required this.crop, required this.time,
+    required this.risk, required this.riskColor,
   });
 }
 
 final _mockQueries = [
-  _MockQuery(
-    title: 'Rust disease diagnosis',
-    district: 'Faisalabad',
-    crop: 'Wheat',
-    time: '2h ago',
-    risk: 'High',
-    riskColor: AppColors.burntOrange,
-  ),
-  _MockQuery(
-    title: 'Irrigation schedule',
-    district: 'Multan',
-    crop: 'Cotton',
-    time: '4h ago',
-    risk: 'Watch',
-    riskColor: AppColors.amber,
-  ),
-  _MockQuery(
-    title: 'Yield forecast review',
-    district: 'Lahore',
-    crop: 'Rice',
-    time: '6h ago',
-    risk: 'Good',
-    riskColor: AppColors.limeGreen,
-  ),
-  _MockQuery(
-    title: 'Fertilizer advice',
-    district: 'Peshawar',
-    crop: 'Maize',
-    time: '8h ago',
-    risk: 'Good',
-    riskColor: AppColors.limeGreen,
-  ),
+  _MockQuery(title: 'Rust disease diagnosis', district: 'Faisalabad',
+      crop: 'Wheat', time: '2h ago', risk: 'High',
+      riskColor: AppColors.burntOrange),
+  _MockQuery(title: 'Irrigation schedule', district: 'Multan',
+      crop: 'Cotton', time: '4h ago', risk: 'Watch',
+      riskColor: AppColors.amber),
+  _MockQuery(title: 'Yield forecast review', district: 'Lahore',
+      crop: 'Rice', time: '6h ago', risk: 'Good',
+      riskColor: AppColors.limeGreen),
+  _MockQuery(title: 'Fertilizer advice', district: 'Peshawar',
+      crop: 'Maize', time: '8h ago', risk: 'Good',
+      riskColor: AppColors.limeGreen),
 ];

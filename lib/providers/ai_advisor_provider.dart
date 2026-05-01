@@ -7,6 +7,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cropsense/app.dart';
+import 'package:cropsense/core/constants.dart';
 import 'package:cropsense/data/models/ai_advice.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -80,7 +81,13 @@ final advisorFormProvider =
 class AdvisorFormNotifier extends StateNotifier<AdvisorFormState> {
   AdvisorFormNotifier() : super(const AdvisorFormState());
 
-  void setDistrict(String v)        => state = state.copyWith(district: v);
+  void setDistrict(String v) {
+    final match = AppDistricts.all.firstWhere(
+      (d) => d['id'] == v,
+      orElse: () => {'id': v, 'label': v, 'province': 'Punjab'},
+    );
+    state = state.copyWith(district: v, province: match['province']);
+  }
   void setCrop(String v)            => state = state.copyWith(crop: v);
   void setProvince(String v)        => state = state.copyWith(province: v);
   void setSeason(String v)          => state = state.copyWith(season: v);
@@ -120,24 +127,15 @@ class AIAdviceNotifier extends StateNotifier<AsyncValue<AIAdvice?>> {
 
   AIAdviceNotifier(this._ref) : super(const AsyncValue.data(null));
 
-  // Called when user taps "Analyze with AI" button
+  // Called when user taps "Analyze with AI" button.
+  // Always hits the API — skipping cache so every input change produces fresh advice.
   Future<void> analyze() async {
-    final form  = _ref.read(advisorFormProvider);
-    final api   = _ref.read(apiServiceProvider);
-    final cache = _ref.read(cacheServiceProvider);
+    final form = _ref.read(advisorFormProvider);
+    final api  = _ref.read(apiServiceProvider);
 
-    // Show loading spinner in the result panel
     state = const AsyncValue.loading();
 
     try {
-      // Check cache first — 6 hour freshness for AI advice
-      final cached = cache.getCachedAIAdvice(form.district, form.crop);
-      if (cached != null) {
-        state = AsyncValue.data(AIAdvice.fromJson(cached));
-        return;
-      }
-
-      // Build the request object from current form state
       final request = AIAdviceRequest(
         district:        form.district,
         crop:            form.crop,
@@ -153,51 +151,12 @@ class AIAdviceNotifier extends StateNotifier<AsyncValue<AIAdvice?>> {
       );
 
       final advice = await api.getAIAdvice(request: request);
-
-      // Cache the result
-      await cache.cacheAIAdvice(form.district, form.crop, advice.toJson());
-
       state = AsyncValue.data(advice);
     } catch (e, st) {
-      // Show mock advice when backend isn't running yet
-      state = AsyncValue.data(_mockAdvice(form.district, form.crop));
+      state = AsyncValue.error(e, st);
     }
   }
 
   void clearAdvice() => state = const AsyncValue.data(null);
 }
 
-// Mock AI advice for offline development / UI testing
-AIAdvice _mockAdvice(String district, String crop) {
-  return AIAdvice(
-    alertUrdu: 'Fasal ko zang ka khatara hai — kal subah spray karein',
-    alertEnglish:
-        'Wheat rust risk detected — immediate fungicide application recommended',
-    diagnosis: 'Yellow rust (Puccinia striiformis) — Early Stage',
-    confidencePct: 87.0,
-    actionSteps: [
-      '1. Apply Topsin-M 70 WP at 250g per acre within 48 hours',
-      '2. Increase irrigation frequency to every 8 days',
-      '3. Avoid nitrogen fertilizer for the next 2 weeks',
-      '4. Monitor leaves daily — if spreading, repeat spray after 10 days',
-      '5. Report to local agriculture office if more than 30% leaves affected',
-    ],
-    medicines: [],
-    fertilizerAdvice:
-        'Hold all nitrogen (urea) applications for 2 weeks. '
-        'Apply 1 bag DAP per acre after disease is controlled.',
-    irrigationAdvice:
-        'Increase to every 8 days. Avoid waterlogging — '
-        'ensure field has proper drainage channels open.',
-    totalCostPerAcrePkr: 12500,
-    totalCostForFarmPkr: 62500,
-    expectedYieldIncreasePct: 18.0,
-    roiNote:
-        'Spending ₨12,500 now protects an estimated ₨45,000 worth of yield. '
-        'Net ROI: 260% on treatment cost.',
-    nextCheckupDays: 7,
-    generatedAt: DateTime.now().toIso8601String(),
-    district: district,
-    crop: crop,
-  );
-}

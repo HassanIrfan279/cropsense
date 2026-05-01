@@ -1,5 +1,7 @@
 import os
 import httpx
+import json
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,57 +13,114 @@ async def get_grok_advice(req) -> dict:
     if not GROK_API_KEY or GROK_API_KEY == 'your_grok_key_here':
         raise ValueError('No Grok API key configured')
 
-    symptoms_text = ', '.join(req.symptoms) if req.symptoms else 'none'
+    symptoms_text = ', '.join(req.symptoms) if req.symptoms else 'no symptoms'
 
-    prompt = f"""You are an expert agricultural advisor for Pakistan.
-A farmer in {req.district}, {req.province} needs advice for their {req.crop} crop.
+    prompt = f"""You are an expert agricultural advisor for Pakistan farmers.
+A farmer in {req.district}, {req.province} needs urgent advice for their {req.crop} crop.
 
-Farm Details:
+Current Field Conditions:
 - Season: {req.season}
 - Farm size: {req.farmSizeAcres} acres
-- NDVI: {req.ndvi} (vegetation health 0-1)
-- Rainfall: {req.rainfallMm}mm
-- Max temperature: {req.tempMaxC}C
+- NDVI (vegetation health 0-1): {req.ndvi}
+- Rainfall last 30 days: {req.rainfallMm}mm
+- Maximum temperature: {req.tempMaxC}°C
 - Soil moisture: {req.soilMoisturePct}%
-- Water table: {req.waterTableM}m
+- Water table depth: {req.waterTableM}m
 - Observed symptoms: {symptoms_text}
 
-Respond in JSON with these exact keys:
-alertUrdu (Roman Urdu warning), alertEnglish, diagnosis, confidencePct (0-100),
-actionSteps (list of 5 strings), fertilizerAdvice, irrigationAdvice,
-totalCostPerAcrePkr (number), expectedYieldIncreasePct (number),
-roiNote, nextCheckupDays (number).
+Based on these SPECIFIC conditions, provide personalized agricultural advice.
+If NDVI is low (below 0.4), focus on vegetation stress.
+If temperature is high (above 40), focus on heat stress.
+If rainfall is low (below 50mm), focus on drought.
+If symptoms include rust_patches or leaf_yellowing, focus on disease.
 
-Use real Pakistani medicine/fertilizer brand names sold in Pakistani markets.
-Keep Roman Urdu simple and practical for a farmer."""
+Respond with ONLY a valid JSON object (no markdown, no backticks):
+{{
+  "alertUrdu": "Roman Urdu warning specific to their conditions (2-3 sentences)",
+  "alertEnglish": "English alert specific to their conditions (2-3 sentences)",
+  "diagnosis": "Specific diagnosis based on their NDVI={req.ndvi}, temp={req.tempMaxC}C, symptoms={symptoms_text}",
+  "confidencePct": 85,
+  "actionSteps": [
+    "Step 1 specific to their conditions",
+    "Step 2 with specific doses",
+    "Step 3 with timing",
+    "Step 4 follow-up",
+    "Step 5 prevention"
+  ],
+  "fertilizerAdvice": "Specific fertilizer advice for {req.crop} in {req.district} given current soil moisture {req.soilMoisturePct}%",
+  "irrigationAdvice": "Specific irrigation advice given rainfall {req.rainfallMm}mm and water table {req.waterTableM}m",
+  "totalCostPerAcrePkr": 12500,
+  "expectedYieldIncreasePct": 18,
+  "roiNote": "ROI explanation specific to {req.crop} in {req.district}",
+  "nextCheckupDays": 7
+}}"""
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            GROK_URL,
-            headers={
-                'Authorization': f'Bearer {GROK_API_KEY}',
-                'Content-Type': 'application/json',
-            },
-            json={
-                'model': 'grok-beta',
-                'messages': [{'role': 'user', 'content': prompt}],
-                'temperature': 0.3,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
-        content = data['choices'][0]['message']['content']
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.post(
+                GROK_URL,
+                headers={
+                    'Authorization': f'Bearer {GROK_API_KEY}',
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'model': 'grok-beta',
+                    'messages': [
+                        {
+                            'role': 'system',
+                            'content': 'You are an agricultural AI advisor for Pakistan. Always respond with valid JSON only. Never use markdown formatting.'
+                        },
+                        {
+                            'role': 'user',
+                            'content': prompt
+                        }
+                    ],
+                    'temperature': 0.7,
+                    'max_tokens': 1500,
+                },
+            )
 
-        import json
-        import re
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            advice = json.loads(json_match.group())
+            if response.status_code != 200:
+                print(f'Grok API error: {response.status_code} - {response.text}')
+                raise ValueError(f'Grok API returned {response.status_code}')
+
+            data = response.json()
+            content = data['choices'][0]['message']['content']
+
+            print(f'Grok raw response: {content[:200]}')
+
+            # Clean the response
+            content = content.strip()
+            content = re.sub(r'^```json\s*', '', content)
+            content = re.sub(r'^```\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
+            content = content.strip()
+
+            # Find JSON object
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                advice = json.loads(json_match.group())
+            else:
+                advice = json.loads(content)
+
+            # Add required fields
             advice['medicines'] = []
             advice['totalCostForFarmPkr'] = (
-                advice.get('totalCostPerAcrePkr', 0) * req.farmSizeAcres
+                advice.get('totalCostPerAcrePkr', 12500) * req.farmSizeAcres
             )
             advice['district'] = req.district
             advice['crop'] = req.crop
+
+            print(f'Grok advice generated successfully for {req.district}/{req.crop}')
             return advice
-        raise ValueError('Could not parse Grok response')
+
+    except json.JSONDecodeError as e:
+        print(f'JSON parse error: {e}')
+        print(f'Content was: {content}')
+        raise ValueError(f'Could not parse Grok response: {e}')
+    except httpx.TimeoutException:
+        print('Grok API timeout')
+        raise ValueError('Grok API timed out')
+    except Exception as e:
+        print(f'Grok error: {type(e).__name__}: {e}')
+        raise

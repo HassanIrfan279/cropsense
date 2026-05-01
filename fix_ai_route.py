@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+content = '''from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List
 from app.services.grok import get_grok_advice
@@ -72,9 +72,6 @@ async def ai_advise(req: AdviceRequest):
                 "5. 10 din baad dobara spray karein",
             ]
             medicine_name = "Topsin-M 70 WP"
-            medicine_type = "fungicide"
-            medicine_ingredient = "Thiophanate-methyl 70%"
-            medicine_dose = "250g per acre"
             medicine_price = 850.0
             medicine_urgency = "immediate"
         elif has_yellow:
@@ -88,9 +85,6 @@ async def ai_advise(req: AdviceRequest):
                 "5. 7 din baad leaf color observe karein",
             ]
             medicine_name = "Dithane M-45"
-            medicine_type = "fungicide"
-            medicine_ingredient = "Mancozeb 80%"
-            medicine_dose = "500g per acre"
             medicine_price = 650.0
             medicine_urgency = "within_week"
         elif has_pest:
@@ -104,9 +98,6 @@ async def ai_advise(req: AdviceRequest):
                 "5. Natural dushmanon ko protect karein",
             ]
             medicine_name = "Confidor (Imidacloprid)"
-            medicine_type = "pesticide"
-            medicine_ingredient = "Imidacloprid 200 SL"
-            medicine_dose = "200ml per acre"
             medicine_price = 950.0
             medicine_urgency = "immediate"
         elif has_wilt:
@@ -120,9 +111,6 @@ async def ai_advise(req: AdviceRequest):
                 "5. 5 din mein dobara check karein",
             ]
             medicine_name = "Potassium Silicate (Anti-stress)"
-            medicine_type = "growth_reg"
-            medicine_ingredient = "Potassium silicate 30%"
-            medicine_dose = "500ml per acre foliar spray"
             medicine_price = 750.0
             medicine_urgency = "within_week"
         else:
@@ -136,14 +124,10 @@ async def ai_advise(req: AdviceRequest):
                 f"5. Next visit {7 if risk_level in ['High','Critical'] else 14} din mein",
             ]
             medicine_name = "DAP Fertilizer"
-            medicine_type = "fertilizer"
-            medicine_ingredient = "Diammonium Phosphate 18-46-0"
-            medicine_dose = "1 bag (50kg) per acre"
             medicine_price = 8500.0
             medicine_urgency = "preventive"
 
-        cost_per_acre = medicine_price if medicine_type != "fertilizer" else 8500.0
-        total = cost_per_acre * req.farmSizeAcres
+        total = 12500.0 * req.farmSizeAcres
         return {
             "alertUrdu": urdu,
             "alertEnglish": f"{req.crop.title()} in {req.district.title()}, {req.province}: {risk_level} risk. NDVI={req.ndvi}, Temp={req.tempMaxC}C, Rain={req.rainfallMm}mm. Symptoms: {symptom_text}.",
@@ -152,22 +136,30 @@ async def ai_advise(req: AdviceRequest):
             "actionSteps": steps,
             "medicines": [{
                 "name": medicine_name,
-                "type": medicine_type,
-                "activeIngredient": medicine_ingredient,
-                "dose": medicine_dose,
+                "type": "fungicide",
+                "activeIngredient": "See label",
+                "dose": "As per label per acre",
                 "pricePerAcrePkr": medicine_price,
                 "urgency": medicine_urgency,
                 "purpose": f"{req.crop.title()} protection in {req.district.title()}",
                 "whereToBuy": f"Any agri store in {req.district.title()} market",
-                "applicationNote": "Spray early morning or evening. Wear protective gloves.",
+                "applicationNote": "Spray early morning or evening",
             }],
             "fertilizerAdvice": f"Soil moisture {req.soilMoisturePct}% in {req.district}: {'Hold Urea 2 weeks' if has_rust else 'Apply DAP 1 bag/acre with irrigation'}.",
-            "irrigationAdvice": f"Rainfall {req.rainfallMm}mm, water table {req.waterTableM}m: {'Irrigate every 8 days' if req.rainfallMm < 100 else 'Maintain current schedule'}.",
-            "totalCostPerAcrePkr": cost_per_acre,
+            "irrigationAdvice": f"Rainfall {req.rainfallMm}mm, water table {req.waterTableM}m: {'Irrigate every 8 days' if req.rainfallMm < 100 else 'Maintain schedule'}.",
+            "totalCostPerAcrePkr": 12500.0,
             "totalCostForFarmPkr": total,
             "expectedYieldIncreasePct": 22.0 if req.symptoms else 12.0,
-            "roiNote": f"{req.farmSizeAcres} acres in {req.district}: Rs.{int(total):,} spend protects Rs.{int(total * 3.6):,} yield. ROI: 260%.",
+            "roiNote": f"{req.farmSizeAcres} acres in {req.district}: Rs.{int(total):,} spend protects Rs.{int(total*3.6):,} yield. ROI: 260%.",
             "nextCheckupDays": 7 if risk_level in ["High", "Critical"] else 14,
             "district": req.district,
             "crop": req.crop,
         }
+'''
+
+import os
+bs = '\\'
+path = 'backend' + bs + 'app' + bs + 'routes' + bs + 'ai_advise.py'
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(content)
+print('ai_advise.py written successfully!')

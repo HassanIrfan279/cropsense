@@ -1,20 +1,17 @@
-// lib/screens/dashboard/widgets/kpi_card.dart
-//
-// Animated KPI card — counts up from 0 to target value on load.
-// Used in the Dashboard top row for key statistics.
-
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cropsense/core/theme.dart';
 
 class KpiCard extends StatelessWidget {
-  final String label;        // e.g. "Districts Monitored"
-  final String value;        // e.g. "36" or "2.1"
-  final String unit;         // e.g. "" or "t/acre" or "Active"
+  final String label;
+  final String value;
+  final String unit;
   final IconData icon;
   final Color color;
-  final String? subtitle;    // Optional second line
-  final bool isAlert;        // If true, pulses red
+  final String? subtitle;
+  final bool isAlert;
+  final int delay; // ms — staggered entrance animation
 
   const KpiCard({
     super.key,
@@ -25,111 +22,100 @@ class KpiCard extends StatelessWidget {
     required this.color,
     this.subtitle,
     this.isAlert = false,
+    this.delay = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 160),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: AppRadius.cardRadius,
-        border: Border.all(
-          color: isAlert
-              ? AppColors.burntOrange.withValues(alpha: 0.4)
-              : AppColors.grey200,
-        ),
-        boxShadow: AppShadows.card,
-      ),
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Icon + label row ───────────────────────────────────
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const Spacer(),
-              // Alert pulse indicator
-              if (isAlert)
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    color: AppColors.burntOrange,
-                    shape: BoxShape.circle,
-                  ),
-                )
-                    .animate(onPlay: (c) => c.repeat())
-                    .scaleXY(
-                      begin: 1.0,
-                      end: 1.4,
-                      duration: 800.ms,
-                      curve: Curves.easeInOut,
-                    )
-                    .then()
-                    .scaleXY(begin: 1.4, end: 1.0, duration: 800.ms),
-            ],
+    return ClipRRect(
+      borderRadius: AppRadius.cardRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 110),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.10),
+            borderRadius: AppRadius.cardRadius,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.18),
+              width: 1,
+            ),
           ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // ── Big number (animates in) ───────────────────────────
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                value,
-                style: AppTextStyles.kpiNumber.copyWith(color: color),
-              )
-                  .animate()
-                  .fadeIn(duration: 600.ms)
-                  .slideY(begin: 0.3, end: 0, duration: 500.ms),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(
-                    unit,
-                    style: AppTextStyles.bodySmall.copyWith(
-                      color: AppColors.grey600,
-                      fontSize: 13,
-                    ),
+              Row(children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  child: Icon(icon, color: color, size: 20),
                 ),
+                const Spacer(),
+                if (isAlert)
+                  Container(
+                    width: 10, height: 10,
+                    decoration: BoxDecoration(
+                      color: AppColors.amber,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.amber.withValues(alpha: 0.55),
+                          blurRadius: 7,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  )
+                      .animate(onPlay: (c) => c.repeat())
+                      .scaleXY(
+                          begin: 1.0, end: 1.6,
+                          duration: 800.ms, curve: Curves.easeInOut)
+                      .then()
+                      .scaleXY(begin: 1.6, end: 1.0, duration: 800.ms),
+              ]),
+
+              const SizedBox(height: AppSpacing.md),
+
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(value,
+                    style: AppTextStyles.kpiNumber
+                        .copyWith(color: Colors.white, letterSpacing: -1.2))
+                    .animate()
+                    .fadeIn(duration: 600.ms)
+                    .slideY(begin: 0.3, end: 0, duration: 500.ms),
+                if (unit.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(unit,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: Colors.white60, fontSize: 13)),
+                  ),
+                ],
+              ]),
+
+              const SizedBox(height: 4),
+              Text(label,
+                  style: AppTextStyles.label.copyWith(color: Colors.white70)),
+
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(subtitle!,
+                    style: AppTextStyles.bodySmall
+                        .copyWith(color: Colors.white54)),
               ],
             ],
           ),
-
-          const SizedBox(height: 4),
-
-          // ── Label ─────────────────────────────────────────────
-          Text(label, style: AppTextStyles.label),
-
-          // ── Optional subtitle ─────────────────────────────────
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.grey600,
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.2, end: 0, duration: 400.ms);
+        .animate(delay: Duration(milliseconds: delay))
+        .fadeIn(duration: 500.ms)
+        .slideY(begin: 0.25, end: 0, duration: 500.ms, curve: Curves.easeOut);
   }
 }
