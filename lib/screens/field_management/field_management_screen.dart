@@ -337,6 +337,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 430;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 18, 24, 16),
       decoration: const BoxDecoration(gradient: AppGradients.heroGreen),
@@ -364,6 +365,8 @@ class _Header extends StatelessWidget {
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'Welcome, $username. Track fields, costs, activities, and AI savings.',
@@ -371,15 +374,25 @@ class _Header extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.72),
                     fontSize: 12,
                   ),
+                  maxLines: compact ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          TextButton.icon(
-            onPressed: onLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.white),
-            label: const Text('Logout', style: TextStyle(color: Colors.white)),
-          ),
+          if (compact)
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout_rounded, color: Colors.white),
+            )
+          else
+            TextButton.icon(
+              onPressed: onLogout,
+              icon: const Icon(Icons.logout_rounded, color: Colors.white),
+              label:
+                  const Text('Logout', style: TextStyle(color: Colors.white)),
+            ),
         ],
       ),
     );
@@ -484,11 +497,15 @@ class _FieldTile extends ConsumerWidget {
               Text(
                 field['fieldName']?.toString() ?? '',
                 style: TextStyle(fontWeight: FontWeight.w800, color: color),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 3),
               Text(
                 '${_title(field['crop'])} / ${_num(field['areaSizeAcres']).toStringAsFixed(1)} acres',
                 style: AppTextStyles.bodySmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ]),
           ),
@@ -574,11 +591,15 @@ class _CropVisual extends ConsumerWidget {
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 6),
               Text(
                 '${_title(field['crop'])} growing in ${field['location'] ?? ''}',
                 style: TextStyle(color: Colors.white.withValues(alpha: 0.78)),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
               const Spacer(),
               Wrap(spacing: 8, runSpacing: 8, children: [
@@ -641,7 +662,11 @@ class _QuickActions extends StatelessWidget {
           children: actions.map((item) {
             return ActionChip(
               avatar: Icon(item.$3, size: 16, color: item.$4),
-              label: Text(item.$2),
+              label: Text(
+                item.$2,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               onPressed: () => showDialog(
                 context: context,
                 builder: (_) => _LogDialog(fieldId: fieldId, type: item.$1),
@@ -695,14 +720,17 @@ class _FinanceCharts extends StatelessWidget {
               .toList(),
         );
       }
-      return GridView.count(
-        crossAxisCount: 2,
+      return GridView.builder(
         shrinkWrap: true,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.55,
         physics: const NeverScrollableScrollPhysics(),
-        children: charts,
+        itemCount: charts.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          mainAxisExtent: 270,
+        ),
+        itemBuilder: (context, index) => charts[index],
       );
     });
   }
@@ -822,70 +850,117 @@ class _MetricGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metrics = [
+    final metrics = <({String title, String value, IconData icon})>[
       (
-        'Total cost',
-        _money(_num(analytics['totalCostPkr'])),
-        Icons.receipt_long_rounded
+        title: 'Total cost',
+        value: _money(_num(analytics['totalCostPkr'])),
+        icon: Icons.receipt_long_rounded,
       ),
       (
-        'Income',
-        _money(_num(analytics['totalIncomePkr'])),
-        Icons.savings_rounded
+        title: 'Income',
+        value: _money(_num(analytics['totalIncomePkr'])),
+        icon: Icons.savings_rounded,
       ),
       (
-        'Net',
-        _money(_num(analytics['netProfitPkr'])),
-        Icons.trending_up_rounded
+        title: 'Net',
+        value: _money(_num(analytics['netProfitPkr'])),
+        icon: Icons.trending_up_rounded,
       ),
       (
-        'Cost/acre',
-        _money(_num(analytics['costPerAcrePkr'])),
-        Icons.straighten_rounded
+        title: 'Cost/acre',
+        value: _money(_num(analytics['costPerAcrePkr'])),
+        icon: Icons.straighten_rounded,
       ),
       (
-        'Water',
-        '${_num(analytics['waterUsage']).toStringAsFixed(0)} units',
-        Icons.water_drop_rounded
+        title: 'Water',
+        value: '${_num(analytics['waterUsage']).toStringAsFixed(0)} units',
+        icon: Icons.water_drop_rounded,
       ),
       (
-        'Risk',
-        analytics['riskLevel']?.toString() ?? 'low',
-        Icons.warning_rounded
+        title: 'Risk',
+        value: analytics['riskLevel']?.toString() ?? 'low',
+        icon: Icons.warning_rounded,
       ),
     ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      childAspectRatio: 1.7,
-      physics: const NeverScrollableScrollPhysics(),
-      children: metrics
-          .map((item) => Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.grey100,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.grey200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.$3, size: 17, color: AppColors.deepGreen),
-                    const SizedBox(height: 5),
-                    Text(item.$1, style: AppTextStyles.bodySmall),
-                    Text(
-                      item.$2,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                ),
-              ))
-          .toList(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 680
+            ? 3
+            : width >= 360
+                ? 2
+                : 1;
+        final extent = width < 360
+            ? 138.0
+            : width < 680
+                ? 128.0
+                : 118.0;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: metrics.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            mainAxisExtent: extent,
+          ),
+          itemBuilder: (context, index) {
+            final item = metrics[index];
+            return _MetricCard(
+              title: item.title,
+              value: item.value,
+              icon: item.icon,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+
+  const _MetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: AppColors.deepGreen),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: AppTextStyles.bodySmall,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1041,10 +1116,12 @@ class _FieldDialogState extends ConsumerState<_FieldDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = screenWidth < 620 ? screenWidth * 0.82 : 520.0;
     return AlertDialog(
       title: Text(widget.existing == null ? 'Add field' : 'Edit field'),
       content: SizedBox(
-        width: 520,
+        width: dialogWidth,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(
@@ -1168,10 +1245,12 @@ class _LogDialogState extends ConsumerState<_LogDialog> {
   @override
   Widget build(BuildContext context) {
     final title = _title(widget.type);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = screenWidth < 560 ? screenWidth * 0.82 : 460.0;
     return AlertDialog(
       title: Text('Log $title'),
       content: SizedBox(
-        width: 460,
+        width: dialogWidth,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             _DateButton(
@@ -1366,7 +1445,12 @@ class _ChartPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GlassPanel(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: AppTextStyles.headingSmall),
+        Text(
+          title,
+          style: AppTextStyles.headingSmall,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         const SizedBox(height: 10),
         SizedBox(height: 190, child: child),
       ]),
@@ -1570,14 +1654,21 @@ class _WhiteChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.sizeOf(context).width * 0.72,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(100),
         border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
       ),
-      child: Text(label,
-          style: const TextStyle(color: Colors.white, fontSize: 12)),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }
@@ -1600,7 +1691,14 @@ class _TaskTile extends StatelessWidget {
         const Icon(Icons.event_available_rounded,
             size: 15, color: AppColors.amber),
         const SizedBox(width: 7),
-        Expanded(child: Text(text, style: AppTextStyles.bodySmall)),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTextStyles.bodySmall,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ]),
     );
   }
@@ -1678,10 +1776,19 @@ class _DialogDropdown extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       decoration: InputDecoration(labelText: label),
       items: items
-          .map((item) =>
-              DropdownMenuItem(value: item, child: Text(_title(item))))
+          .map(
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(
+                _title(item),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          )
           .toList(),
       onChanged: (value) {
         if (value != null) onChanged(value);
@@ -1714,7 +1821,11 @@ class _DateButton extends StatelessWidget {
         if (picked != null) onPick(picked);
       },
       icon: const Icon(Icons.calendar_month_rounded),
-      label: Text('$label: ${_date(date)}'),
+      label: Text(
+        '$label: ${_date(date)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.database import init_db
+from app.database import database_config_summary, init_db
 
 load_dotenv()
 
@@ -16,7 +16,8 @@ app = FastAPI(
     version='1.0.0',
 )
 
-_CORS_ORIGINS = [
+_PRODUCTION_FRONTEND_ORIGIN = 'https://cropsensebyhassan.netlify.app'
+_LOCAL_DEV_ORIGINS = [
     'http://localhost',
     'http://localhost:8080',
     'http://localhost:5000',
@@ -27,14 +28,34 @@ _CORS_ORIGINS = [
     'http://127.0.0.1:5173',
     'http://127.0.0.1:8000',
 ]
-# Append any extra origins from .env (comma-separated)
+
+
+def _is_production_runtime() -> bool:
+    env_name = os.getenv('APP_ENV') or os.getenv('ENVIRONMENT') or ''
+    return (
+        os.getenv('RENDER', '').lower() == 'true'
+        or env_name.lower() in {'production', 'prod'}
+    )
+
+
+_CORS_ORIGINS = []
 for _origin in os.getenv('CORS_ORIGINS', '').split(','):
     _origin = _origin.strip()
     if _origin and _origin not in _CORS_ORIGINS:
         _CORS_ORIGINS.append(_origin)
 
+if _PRODUCTION_FRONTEND_ORIGIN not in _CORS_ORIGINS:
+    _CORS_ORIGINS.append(_PRODUCTION_FRONTEND_ORIGIN)
+
+if not _is_production_runtime():
+    for _origin in _LOCAL_DEV_ORIGINS:
+        if _origin not in _CORS_ORIGINS:
+            _CORS_ORIGINS.append(_origin)
+
 _CORS_ALLOW_ALL = os.getenv('CORS_ALLOW_ALL', 'false').lower() == 'true'
-_LOCALHOST_REGEX = r'https?://(localhost|127\.0\.0\.1)(:\d+)?'
+_LOCALHOST_REGEX = (
+    None if _is_production_runtime() else r'https?://(localhost|127\.0\.0\.1)(:\d+)?'
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +65,13 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
     expose_headers=['*'],
+)
+
+log.info(
+    'CORS configured: allow_all=%s origins=%s local_regex=%s',
+    _CORS_ALLOW_ALL,
+    _CORS_ORIGINS,
+    bool(_LOCALHOST_REGEX),
 )
 
 # ── Route registration ────────────────────────────────────────────────────────
@@ -75,6 +103,12 @@ for _module_path, _name in _ROUTES:
 @app.on_event('startup')
 async def startup():
     try:
+        db_summary = database_config_summary()
+        log.info(
+            'Database config: mode=%s target=%s',
+            db_summary['mode'],
+            db_summary['target'],
+        )
         if init_db():
             log.info('Database tables checked/created')
         else:
