@@ -349,7 +349,7 @@ class _StageCardState extends State{lt}_StageCard{gt} {{
                           size: 12,
                           color: AppColors.grey600),
                       const SizedBox(width: 4),
-                      Text({q}\${widget.stage.durationDays} days{q},
+                      Text({q}\${Widget.stage.durationDays} days{q},
                           style: AppTextStyles.bodySmall),
                     ]),
                   ],

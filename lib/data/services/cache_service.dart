@@ -143,9 +143,7 @@ class CacheService {
       set(CacheKeys.districtList, data);
 
   List<Map<String, dynamic>>? getCachedDistrictList() {
-    final data = get(CacheKeys.districtList, CacheDurations.districtList);
-    if (data == null) return null;
-    return (data as List).cast<Map<String, dynamic>>();
+    return null; // cache disabled — always fetch live
   }
 
   // Risk map (cached 1 hour — changes frequently)
@@ -153,8 +151,7 @@ class CacheService {
       set(CacheKeys.riskMap, data);
 
   Map<String, dynamic>? getCachedRiskMap() {
-    final data = get(CacheKeys.riskMap, CacheDurations.riskMap);
-    return data as Map<String, dynamic>?;
+    return null; // cache disabled — always fetch live
   }
 
   // AI advice per district/crop (cached 6 hours)
@@ -180,11 +177,7 @@ class CacheService {
   ) => set(CacheKeys.yield_(district, crop), data);
 
   Map<String, dynamic>? getCachedYieldData(String district, String crop) {
-    final data = get(
-      CacheKeys.yield_(district, crop),
-      CacheDurations.yieldData,
-    );
-    return data as Map<String, dynamic>?;
+    return null; // cache disabled — always fetch live
   }
 
   // Stats per district (cached 12 hours)
@@ -193,6 +186,26 @@ class CacheService {
 
   Map<String, dynamic>? getCachedStats(String district) {
     final data = get(CacheKeys.stats(district), CacheDurations.yieldData);
+    return data as Map<String, dynamic>?;
+  }
+
+  // Weather per district (cached 30 minutes)
+  Future<void> cacheWeather(String district, Map<String, dynamic> data) =>
+      set(CacheKeys.weather(district), data);
+
+  Map<String, dynamic>? getCachedWeather(String district) {
+    final data = get(CacheKeys.weather(district), CacheDurations.weather);
+    return data as Map<String, dynamic>?;
+  }
+
+  // Comparison (cached 6 hours)
+  Future<void> cacheComparison(
+      String d1, String d2, String crop, Map<String, dynamic> data) =>
+      set(CacheKeys.comparison(d1, d2, crop), data);
+
+  Map<String, dynamic>? getCachedComparison(String d1, String d2, String crop) {
+    final data = get(
+        CacheKeys.comparison(d1, d2, crop), CacheDurations.comparison);
     return data as Map<String, dynamic>?;
   }
 }

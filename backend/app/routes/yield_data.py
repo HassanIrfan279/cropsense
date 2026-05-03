@@ -1,39 +1,66 @@
 from fastapi import APIRouter
 import random
-import math
+from app.data.pbs_data import (
+    YEARS, RAINFALL_MM,
+    get_yield, get_yield_series, get_rainfall_for_year,
+)
 
 router = APIRouter()
 
+
+def _ndvi(rainfall: float, seed: float) -> float:
+    rng = random.Random(seed)
+    raw = (rainfall / 400.0) * 0.6 + 0.25 + rng.uniform(-0.05, 0.05)
+    return round(max(0.1, min(0.9, raw)), 3)
+
+
+@router.get('/test')
+async def test_endpoint():
+    val = get_yield('faisalabad', 'wheat', 2023)
+    return {
+        'status':      'ok',
+        'data_source': 'PBS real data (pandas DataFrame)',
+        'sample_yield': val,
+        'description': 'Faisalabad wheat 2023 yield t/acre',
+        'total_years': len(YEARS),
+        'year_range':  f'{YEARS[0]}-{YEARS[-1]}',
+    }
+
+
 @router.get('/yield/{district}/{crop}')
-async def get_yield(district: str, crop: str):
+async def get_yield_data(district: str, crop: str):
+    print(f'Yield request: {district}/{crop}')
+    series = get_yield_series(district, crop)
     data = []
-    for i in range(19):
-        yr = 2005 + i
-        p = i / 18.0
-        base = 1.8 + p * 0.6
-        v = 0.3 * (-1 if i % 3 == 0 else 1)
+    for _, row in series.iterrows():
+        year     = int(row['year'])
+        rainfall = get_rainfall_for_year(year)
+        seed     = float(hash(f'{district}{crop}{year}') % 10000)
+        ndvi     = _ndvi(rainfall, seed)
+        y        = float(row['yield_t_acre'])
+        idx      = YEARS.index(year)
         data.append({
-            'district': district,
-            'crop': crop,
-            'year': yr,
-            'month': None,
-            'yieldTAcre': round(max(0.8, min(3.5, base + v)), 2),
-            'ndvi': round(max(0.2, min(0.9, 0.45 + p * 0.25)), 2),
-            'rainfallMm': round(180 + (i % 5) * 40.0, 1),
-            'tempMaxC': round(36 + (i % 3) * 2.0, 1),
-            'tempMinC': round(18 + (i % 4) * 1.5, 1),
-            'soilMoisturePct': round(35 + (i % 6) * 5.0, 1),
-            'predictedYield': round(base + v * 0.8, 2),
+            'district':        district.lower(),
+            'crop':            crop.lower(),
+            'year':            year,
+            'month':           None,
+            'yieldTAcre':      y,
+            'ndvi':            ndvi,
+            'rainfallMm':      float(rainfall),
+            'tempMaxC':        round(36 + (idx % 3) * 2.0, 1),
+            'tempMinC':        round(18 + (idx % 4) * 1.5, 1),
+            'soilMoisturePct': round(35 + (idx % 6) * 5.0, 1),
+            'predictedYield':  round(y * 0.97, 2),
         })
-    return {'district': district, 'crop': crop, 'data': data}
+    print(f'Yield response: {len(data)} records for {district}/{crop}')
+    return {'district': district.lower(), 'crop': crop.lower(), 'data': data}
+
 
 @router.get('/ndvi-timeseries/{district}')
 async def get_ndvi(district: str):
-    data = []
-    for i in range(19):
-        p = i / 18.0
-        data.append({
-            'year': 2005 + i,
-            'ndvi': round(max(0.2, min(0.9, 0.45 + p * 0.25)), 3),
-        })
-    return {'district': district, 'data': data}
+    data = [
+        {'year': year, 'ndvi': _ndvi(float(RAINFALL_MM[i]),
+                                      float(hash(f'{district}{year}') % 10000))}
+        for i, year in enumerate(YEARS)
+    ]
+    return {'district': district.lower(), 'data': data}

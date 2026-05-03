@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends
-from app.models.orm_models import District
+from fastapi import APIRouter
 
 router = APIRouter()
 

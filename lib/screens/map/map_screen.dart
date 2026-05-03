@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math' show Point;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -13,241 +15,210 @@ import 'package:cropsense/providers/map_provider.dart';
 import 'package:cropsense/screens/map/widgets/map_legend.dart';
 import 'package:cropsense/screens/map/widgets/district_popup.dart';
 
+// Holds polygon points keyed by district id for hit-testing.
+typedef _PolyTarget = ({String districtId, List<LatLng> points});
+
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({super.key});
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen>
-    with TickerProviderStateMixin {
+class _MapScreenState extends ConsumerState<MapScreen> {
   List<dynamic> _features = [];
-  // First polygon ring per district — used for point-in-polygon hit detection
-  final Map<String, List<LatLng>> _districtPolygons = {};
-
+  List<_PolyTarget> _hitTargets = [];
   RiskMapEntry? _selectedEntry;
+  String? _hoveredId;
+  Offset? _hoverOffset;
   String _selectedCrop = 'wheat';
-  String? _hoveredDistrictId;
-  Offset? _tooltipOffset;
-
-  final _mapController = MapController();
-  late AnimationController _zoomAnimController;
+  int _selectedYear = DataConstants.endYear;
+  bool _mapReady = false;
+  final _mapCtrl = MapController();
 
   @override
   void initState() {
     super.initState();
-    _zoomAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
     _loadGeoJson();
   }
 
-  @override
-  void dispose() {
-    _zoomAnimController.dispose();
-    super.dispose();
-  }
-
+  // ── GeoJSON ────────────────────────────────────────────────────────────
   Future<void> _loadGeoJson() async {
     try {
-      final raw = await rootBundle.loadString('assets/geojson/pakistan_districts.geojson');
+      final raw = await rootBundle
+          .loadString('assets/geojson/pakistan_districts.geojson');
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final features = decoded['features'] as List<dynamic>;
-      final polys = <String, List<LatLng>>{};
+      final targets = <_PolyTarget>[];
+
       for (final f in features) {
-        final id = (f['properties'] as Map<String, dynamic>)['district'] as String;
-        final geo = f['geometry'] as Map<String, dynamic>;
-        if (geo['type'] == 'Polygon') {
-          polys[id] = _toLatLng(geo['coordinates'][0] as List<dynamic>);
-        } else if (geo['type'] == 'MultiPolygon') {
-          polys[id] = _toLatLng((geo['coordinates'][0] as List<dynamic>)[0] as List<dynamic>);
+        final id =
+            (f['properties'] as Map<String, dynamic>)['district'] as String;
+        final geom = f['geometry'] as Map<String, dynamic>;
+        final type = geom['type'] as String;
+        final coords = geom['coordinates'] as List<dynamic>;
+
+        if (type == 'Polygon') {
+          targets.add((districtId: id, points: _ll(coords[0] as List)));
+        } else if (type == 'MultiPolygon') {
+          for (final ring in coords) {
+            targets
+                .add((districtId: id, points: _ll((ring as List)[0] as List)));
+          }
         }
       }
+
       if (mounted) {
         setState(() {
           _features = features;
-          _districtPolygons.addAll(polys);
+          _hitTargets = targets;
         });
       }
     } catch (e) {
-      debugPrint('GeoJSON load error: $e');
+      debugPrint('GeoJSON error: $e');
     }
   }
 
-  List<LatLng> _toLatLng(List<dynamic> coords) => coords
+  List<LatLng> _ll(List<dynamic> coords) => coords
       .map((c) => LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble()))
       .toList();
 
-  // ── Point-in-polygon (ray casting) ──────────────────────────────────
-  bool _pointInPolygon(LatLng pt, List<LatLng> poly) {
-    bool inside = false;
+  // ── Point-in-polygon (ray-casting) ─────────────────────────────────────
+  bool _pointInPolygon(LatLng p, List<LatLng> poly) {
+    int crosses = 0;
     final n = poly.length;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-      final xi = poly[i].longitude, yi = poly[i].latitude;
-      final xj = poly[j].longitude, yj = poly[j].latitude;
-      if (((yi > pt.latitude) != (yj > pt.latitude)) &&
-          (pt.longitude < (xj - xi) * (pt.latitude - yi) / (yj - yi) + xi)) {
-        inside = !inside;
+    for (int i = 0; i < n; i++) {
+      final a = poly[i];
+      final b = poly[(i + 1) % n];
+      final above = a.latitude <= p.latitude && p.latitude < b.latitude;
+      final below = b.latitude <= p.latitude && p.latitude < a.latitude;
+      if (above || below) {
+        final xInt = (b.longitude - a.longitude) *
+                (p.latitude - a.latitude) /
+                (b.latitude - a.latitude) +
+            a.longitude;
+        if (p.longitude < xInt) crosses++;
       }
     }
-    return inside;
+    return crosses.isOdd;
   }
 
-  String? _districtAtLatLng(LatLng latlng) {
-    for (final e in _districtPolygons.entries) {
-      if (_pointInPolygon(latlng, e.value)) return e.key;
+  // Returns the last matching district id (handles MultiPolygon overlap).
+  String? _hitTest(LatLng point) {
+    String? found;
+    for (final t in _hitTargets) {
+      if (_pointInPolygon(point, t.points)) found = t.districtId;
     }
-    return null;
+    return found;
   }
 
-  String _labelFor(String id) => AppDistricts.all
-      .firstWhere((d) => d['id'] == id, orElse: () => {'label': id})['label']!;
+  // ── Tap ────────────────────────────────────────────────────────────────
+  void _handleTap(LatLng point, List<RiskMapEntry> entries) {
+    final id = _hitTest(point);
+    setState(() {
+      _selectedEntry =
+          id != null ? _entryFor(id, entries) ?? _missingEntry(id) : null;
+    });
+  }
 
-  String _provinceFor(String id) => AppDistricts.all
-      .firstWhere((d) => d['id'] == id, orElse: () => {'province': 'Pakistan'})['province']!;
-
-  // ── Smooth animated camera move ─────────────────────────────────────
-  void _animatedMoveTo(LatLng dest, double destZoom) {
-    final startCenter = _mapController.camera.center;
-    final startZoom   = _mapController.camera.zoom;
-    final latTween  = Tween<double>(begin: startCenter.latitude,  end: dest.latitude);
-    final lngTween  = Tween<double>(begin: startCenter.longitude, end: dest.longitude);
-    final zoomTween = Tween<double>(begin: startZoom, end: destZoom);
-    final anim = CurvedAnimation(parent: _zoomAnimController, curve: Curves.fastOutSlowIn);
-
-    void listener() {
-      _mapController.move(
-        LatLng(latTween.evaluate(anim), lngTween.evaluate(anim)),
-        zoomTween.evaluate(anim),
-      );
+  // ── Hover ──────────────────────────────────────────────────────────────
+  void _handleHover(PointerHoverEvent event, List<RiskMapEntry> entries) {
+    if (!_mapReady) return;
+    final latLng = _mapCtrl.camera
+        .pointToLatLng(Point(event.localPosition.dx, event.localPosition.dy));
+    final id = _hitTest(latLng);
+    if (id != _hoveredId) {
+      setState(() {
+        _hoveredId = id;
+        _hoverOffset = event.localPosition;
+      });
+    } else if (id != null) {
+      // Keep tooltip following mouse while staying on same district.
+      setState(() => _hoverOffset = event.localPosition);
     }
-
-    _zoomAnimController
-      ..reset()
-      ..addListener(listener);
-    _zoomAnimController.forward().then((_) => _zoomAnimController.removeListener(listener));
   }
 
-  // ── Tap handler ─────────────────────────────────────────────────────
-  void _handleTap(LatLng latlng, List<RiskMapEntry> entries) {
-    final id = _districtAtLatLng(latlng);
-    if (id == null) {
-      setState(() => _selectedEntry = null);
-      return;
-    }
-    final entry = entries.firstWhere(
-      (e) => e.district == id,
-      orElse: () => RiskMapEntry(
-        district: id,
-        districtName: _labelFor(id),
-        province: _provinceFor(id),
-        riskLevel: RiskLevel.good,
-        riskScore: 0,
-        ndvi: 0,
-        alertCount: 0,
-        cropYields: const {},
-      ),
-    );
-    setState(() => _selectedEntry = entry);
-
-    // Smoothly zoom into the tapped district
-    _animatedMoveTo(latlng, (_mapController.camera.zoom + 1.5).clamp(5.0, 9.0));
-  }
-
-  // ── Hover handler ────────────────────────────────────────────────────
-  void _onMapHover(Offset localPos) {
+  // ── Helpers ────────────────────────────────────────────────────────────
+  RiskMapEntry? _entryFor(String id, List<RiskMapEntry> entries) {
     try {
-      final latlng = _mapController.camera.screenOffsetToLatLng(localPos);
-      final newId = _districtAtLatLng(latlng);
-      if (newId != _hoveredDistrictId) {
-        setState(() {
-          _hoveredDistrictId = newId;
-          _tooltipOffset = newId != null ? localPos : null;
-        });
-      } else if (newId != null) {
-        // Update tooltip position even if district didn't change
-        setState(() => _tooltipOffset = localPos);
-      }
-    } catch (_) {}
-  }
-
-  // ── Build polygons ───────────────────────────────────────────────────
-  List<Polygon> _buildPolygons(List<RiskMapEntry> entries) {
-    final result = <Polygon>[];
-    for (final f in _features) {
-      final props = f['properties'] as Map<String, dynamic>;
-      final id    = props['district'] as String;
-      final entry = entries.cast<RiskMapEntry?>().firstWhere(
-        (e) => e!.district == id, orElse: () => null);
-      final isSelected = _selectedEntry?.district == id;
-      final isHovered  = _hoveredDistrictId == id;
-
-      final base = entry != null ? riskColor(entry.riskLevel.name) : AppColors.grey400;
-      final fill = base.withValues(alpha: isSelected ? 0.88 : isHovered ? 0.78 : 0.55);
-      final border = (isSelected || isHovered) ? Colors.white : base;
-      final borderWidth = isSelected ? 3.0 : isHovered ? 2.5 : 1.2;
-
-      final geo   = f['geometry'] as Map<String, dynamic>;
-      final geoType = geo['type'] as String;
-      final coords  = geo['coordinates'] as List<dynamic>;
-
-      void addRing(List<dynamic> ring) {
-        final pts = _toLatLng(ring);
-        result.add(Polygon(
-          points: pts,
-          color: fill,
-          borderColor: border,
-          borderStrokeWidth: borderWidth,
-        ));
-      }
-
-      if (geoType == 'Polygon') {
-        addRing(coords[0] as List<dynamic>);
-      } else if (geoType == 'MultiPolygon') {
-        for (final poly in coords) {
-          addRing((poly as List<dynamic>)[0] as List<dynamic>);
-        }
-      }
+      return entries.firstWhere((e) => e.district == id);
+    } catch (_) {
+      return null;
     }
-    return result;
   }
 
-  // ── UI ───────────────────────────────────────────────────────────────
+  RiskMapEntry _missingEntry(String id) => RiskMapEntry(
+        district: id,
+        districtName: id.replaceAll('-', ' '),
+        province: 'Data unavailable',
+        riskLevel: RiskLevel.watch,
+        riskScore: 0,
+        selectedCrop: _selectedCrop,
+        selectedYear: _selectedYear,
+        dataAvailable: false,
+        aiExplanation:
+            'No connected CropSense API record is available for this region.',
+        limitations: const ['Data unavailable for this region.'],
+      );
+
+  LatLng _centroid(List<LatLng> pts) => LatLng(
+        pts.map((p) => p.latitude).reduce((a, b) => a + b) / pts.length,
+        pts.map((p) => p.longitude).reduce((a, b) => a + b) / pts.length,
+      );
+
+  // ── Build ───────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final riskMapAsync = ref.watch(riskMapProvider);
-    final width   = MediaQuery.of(context).size.width;
-    final compact = width < 800;
+    final riskAsync = ref.watch(riskMapProvider);
+    final compact = MediaQuery.of(context).size.width < 800;
 
     return Scaffold(
       backgroundColor: AppColors.offWhite,
       body: Column(children: [
         _buildToolbar(compact),
-        Expanded(child: Row(children: [
+        Expanded(
+            child: Row(children: [
           Expanded(
-            child: riskMapAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.deepGreen)),
-              error:   (e, _) => Center(child: Text('Error: $e')),
-              data:    (rm) => _buildMap(rm, compact),
-            ),
-          ),
-          // ── Desktop side panel (slides in with AnimatedSize) ────────
-          if (!compact)
-            AnimatedSize(
-              duration: const Duration(milliseconds: 260),
-              curve: Curves.easeOut,
-              child: _selectedEntry != null
-                ? Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: DistrictPopup(
-                      district: _selectedEntry!,
-                      onClose: () => setState(() => _selectedEntry = null),
-                    ).animate().fadeIn(duration: 220.ms).slideX(begin: 0.15, end: 0, duration: 220.ms),
-                  )
-                : const SizedBox.shrink(),
+              child: riskAsync.when(
+            loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.deepGreen)),
+            error: (e, _) => Center(child: Text('Error: $e')),
+            data: (rm) => _buildMap(rm, compact),
+          )),
+          if (_selectedEntry != null && !compact)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: DistrictPopup(
+                key: ValueKey(_selectedEntry!.district),
+                district: _selectedEntry!,
+                selectedCrop: _selectedCrop,
+                selectedYear: _selectedYear,
+                onClose: () => setState(() => _selectedEntry = null),
+              )
+                  .animate()
+                  .slideX(
+                      begin: 1.0,
+                      end: 0.0,
+                      duration: 220.ms,
+                      curve: Curves.easeOut)
+                  .fadeIn(duration: 180.ms),
             ),
         ])),
+      ]),
+    );
+  }
+
+  Widget _selectorShell({required String label, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: AppTextStyles.label),
+        const SizedBox(width: 8),
+        child,
       ]),
     );
   }
@@ -260,182 +231,298 @@ class _MapScreenState extends ConsumerState<MapScreen>
         border: Border(bottom: BorderSide(color: AppColors.grey200)),
       ),
       child: Row(children: [
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: AppColors.deepGreen.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.map_rounded, color: AppColors.deepGreen, size: 20),
-        ),
-        const SizedBox(width: 12),
         Text('Pakistan Risk Map', style: AppTextStyles.headingMedium),
         const SizedBox(width: 24),
-        if (!compact)
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: AppCrops.all.map((crop) {
-                final sel = _selectedCrop == crop['id'];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(crop['label']!),
-                    selected: sel,
-                    onSelected: (_) => setState(() => _selectedCrop = crop['id']!),
-                    selectedColor: AppColors.deepGreen,
-                    checkmarkColor: Colors.white,
-                    labelStyle: TextStyle(
-                      color: sel ? Colors.white : AppColors.darkText, fontSize: 13),
-                    backgroundColor: AppColors.grey100,
-                    side: BorderSide.none,
-                  ),
-                );
-              }).toList()),
-            ),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _selectorShell(
+                label: 'Crop',
+                child: DropdownButton<String>(
+                  value: _selectedCrop,
+                  underline: const SizedBox.shrink(),
+                  items: AppCrops.all
+                      .map((crop) => DropdownMenuItem(
+                            value: crop['id'],
+                            child: Text(crop['label']!),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedCrop = value;
+                      _selectedEntry = null;
+                    });
+                    ref.read(riskMapProvider.notifier).load(
+                          crop: _selectedCrop,
+                          year: _selectedYear,
+                        );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              _selectorShell(
+                label: 'Year',
+                child: DropdownButton<int>(
+                  value: _selectedYear,
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    for (int year = DataConstants.endYear;
+                        year >= DataConstants.startYear;
+                        year--)
+                      DropdownMenuItem(value: year, child: Text('$year')),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedYear = value;
+                      _selectedEntry = null;
+                    });
+                    ref.read(riskMapProvider.notifier).load(
+                          crop: _selectedCrop,
+                          year: _selectedYear,
+                        );
+                  },
+                ),
+              ),
+            ]),
           ),
+        ),
         const Spacer(),
         IconButton(
-          onPressed: () => ref.refresh(riskMapProvider),
+          onPressed: () => ref.read(riskMapProvider.notifier).refresh(),
           icon: const Icon(Icons.refresh_rounded),
           color: AppColors.deepGreen,
-          tooltip: 'Refresh',
         ),
       ]),
     );
   }
 
+  // ── Map ─────────────────────────────────────────────────────────────────
   Widget _buildMap(RiskMapResponse riskMap, bool compact) {
-    return Listener(
-      onPointerHover: (event) => _onMapHover(event.localPosition),
-      child: Stack(children: [
-        FlutterMap(
-          mapController: _mapController,
+    return Stack(children: [
+      // Listener captures hover before FlutterMap's gesture layer.
+      Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerHover:
+            kIsWeb ? (event) => _handleHover(event, riskMap.districts) : null,
+        child: FlutterMap(
+          mapController: _mapCtrl,
           options: MapOptions(
-            initialCenter: LatLng(MapConstants.pakistanLat, MapConstants.pakistanLng),
+            initialCenter:
+                LatLng(MapConstants.pakistanLat, MapConstants.pakistanLng),
             initialZoom: MapConstants.defaultZoom,
             minZoom: MapConstants.minZoom,
             maxZoom: MapConstants.maxZoom,
-            onTap: (_, latlng) => _handleTap(latlng, riskMap.districts),
+            onMapReady: () => setState(() => _mapReady = true),
+            // MapOptions.onTap fires for all taps NOT consumed by a child
+            // widget (e.g. Marker GestureDetectors absorb their own taps).
+            onTap: (_, latLng) => _handleTap(latLng, riskMap.districts),
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.cropsense.app',
-              retinaMode: false,
+              urlTemplate:
+                  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+              subdomains: const ['a', 'b', 'c', 'd'],
+              userAgentPackageName: 'com.cropsense',
             ),
-            PolygonLayer(polygons: _buildPolygons(riskMap.districts)),
+            PolygonLayer(
+              polygons: _buildPolygons(riskMap.districts),
+              polygonCulling: true,
+            ),
+            // Fallback tap targets: colored circles at polygon centroids.
+            // Marker tap is absorbed by GestureDetector and does NOT
+            // trigger MapOptions.onTap, so this path is independent.
+            MarkerLayer(
+              markers: _buildCenterMarkers(riskMap.districts),
+            ),
           ],
         ),
+      ),
 
-        // ── Hover tooltip ──────────────────────────────────────────────
-        if (_hoveredDistrictId != null && _tooltipOffset != null)
-          _buildTooltip(_tooltipOffset!, _hoveredDistrictId!),
+      // Legend
+      Positioned(left: 16, bottom: 16, child: const MapLegend()),
 
-        // ── Legend ─────────────────────────────────────────────────────
-        const Positioned(left: 16, bottom: 16, child: MapLegend()),
-
-        // ── Compact bottom popup ───────────────────────────────────────
-        if (_selectedEntry != null && compact)
-          Positioned(
-            left: 16, right: 16, bottom: 16,
-            child: DistrictPopup(
-              district: _selectedEntry!,
-              onClose: () => setState(() => _selectedEntry = null),
-            ).animate().fadeIn(duration: 200.ms).slideY(begin: 0.2, end: 0, duration: 200.ms),
-          ),
-
-        // ── Zoom controls ──────────────────────────────────────────────
+      // Compact bottom popup (slides up)
+      if (_selectedEntry != null && compact)
         Positioned(
-          right: 16, top: 16,
-          child: _ZoomControls(mapController: _mapController),
+          left: 16,
+          right: 16,
+          bottom: 72,
+          child: DistrictPopup(
+            key: ValueKey(_selectedEntry!.district),
+            district: _selectedEntry!,
+            selectedCrop: _selectedCrop,
+            selectedYear: _selectedYear,
+            onClose: () => setState(() => _selectedEntry = null),
+          )
+              .animate()
+              .slideY(
+                  begin: 1.0, end: 0.0, duration: 220.ms, curve: Curves.easeOut)
+              .fadeIn(duration: 180.ms),
         ),
-      ]),
-    );
-  }
 
-  Widget _buildTooltip(Offset pos, String id) {
-    final label = _labelFor(id);
-    // Clamp so tooltip doesn't go off screen edges
-    final dx = pos.dx + 14;
-    final dy = (pos.dy - 36).clamp(4.0, double.infinity);
-    return Positioned(
-      left: dx,
-      top: dy,
-      child: IgnorePointer(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1B2B1E).withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(7),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 6)],
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 7, height: 7,
-              decoration: const BoxDecoration(color: AppColors.limeGreen, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(
-              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Zoom control buttons ───────────────────────────────────────────────────────
-class _ZoomControls extends StatelessWidget {
-  final MapController mapController;
-  const _ZoomControls({required this.mapController});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      _ZoomBtn(
-        icon: Icons.add_rounded,
-        onTap: () {
-          final z = (mapController.camera.zoom + 0.8).clamp(4.0, 10.0);
-          mapController.move(mapController.camera.center, z);
-        },
-      ),
-      const SizedBox(height: 2),
-      _ZoomBtn(
-        icon: Icons.remove_rounded,
-        onTap: () {
-          final z = (mapController.camera.zoom - 0.8).clamp(4.0, 10.0);
-          mapController.move(mapController.camera.center, z);
-        },
-      ),
-      const SizedBox(height: 2),
-      _ZoomBtn(
-        icon: Icons.my_location_rounded,
-        onTap: () => mapController.move(
-          LatLng(MapConstants.pakistanLat, MapConstants.pakistanLng),
-          MapConstants.defaultZoom,
-        ),
-      ),
+      // Hover tooltip (web desktop only)
+      if (kIsWeb && _hoveredId != null && _hoverOffset != null)
+        _buildTooltip(_hoveredId!, riskMap.districts),
     ]);
   }
-}
 
-class _ZoomBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _ZoomBtn({required this.icon, required this.onTap});
+  // ── Polygons ─────────────────────────────────────────────────────────────
+  List<Polygon> _buildPolygons(List<RiskMapEntry> entries) {
+    final result = <Polygon>[];
+    for (final f in _features) {
+      final id =
+          (f['properties'] as Map<String, dynamic>)['district'] as String;
+      final entry = _entryFor(id, entries);
+      final isSel = _selectedEntry?.district == id;
+      final isHov = _hoveredId == id;
 
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      elevation: 2,
-      shadowColor: Colors.black26,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: SizedBox(
-          width: 36, height: 36,
-          child: Icon(icon, size: 18, color: AppColors.deepGreen),
+      final base = entry != null && entry.dataAvailable
+          ? riskColor(entry.riskLevel.name)
+          : AppColors.grey400;
+      final fill = base.withValues(
+          alpha: isSel
+              ? 0.85
+              : isHov
+                  ? 0.75
+                  : 0.55);
+      final border = isSel
+          ? Colors.white
+          : isHov
+              ? Colors.white.withValues(alpha: 0.8)
+              : base.withValues(alpha: 0.9);
+      final stroke = isSel
+          ? 3.0
+          : isHov
+              ? 2.5
+              : 1.5;
+
+      final geom = f['geometry'] as Map<String, dynamic>;
+      final type = geom['type'] as String;
+      final coords = geom['coordinates'] as List<dynamic>;
+
+      void addPoly(List pts) => result.add(Polygon(
+            points: _ll(pts),
+            color: fill,
+            borderColor: border,
+            borderStrokeWidth: stroke,
+          ));
+
+      if (type == 'Polygon') {
+        addPoly(coords[0] as List);
+      } else if (type == 'MultiPolygon') {
+        for (final ring in coords) {
+          addPoly((ring as List)[0] as List);
+        }
+      }
+    }
+    return result;
+  }
+
+  // ── Center markers ────────────────────────────────────────────────────────
+  List<Marker> _buildCenterMarkers(List<RiskMapEntry> entries) {
+    final markers = <Marker>[];
+    final seen = <String>{};
+
+    for (final t in _hitTargets) {
+      final id = t.districtId;
+      if (seen.contains(id)) continue;
+      final entry = _entryFor(id, entries) ?? _missingEntry(id);
+      seen.add(id);
+
+      final isSel = _selectedEntry?.district == id;
+      final color = entry.dataAvailable
+          ? riskColor(entry.riskLevel.name)
+          : AppColors.grey400;
+      final size = isSel ? 18.0 : 11.0;
+
+      markers.add(Marker(
+        point: _centroid(t.points),
+        width: size,
+        height: size,
+        child: GestureDetector(
+          // This tap is consumed here — MapOptions.onTap will NOT also fire.
+          onTap: () => setState(() => _selectedEntry = entry),
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              border: Border.all(color: Colors.white, width: isSel ? 2.5 : 1.5),
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 4, spreadRadius: 1)
+              ],
+            ),
+          ),
+        ),
+      ));
+    }
+    return markers;
+  }
+
+  // ── Hover tooltip ─────────────────────────────────────────────────────────
+  Widget _buildTooltip(String id, List<RiskMapEntry> entries) {
+    final entry = _entryFor(id, entries);
+    final offset = _hoverOffset!;
+    // Keep tooltip inside viewport
+    final screenW = MediaQuery.of(context).size.width;
+    final left = (offset.dx + 16).clamp(0.0, screenW - 200);
+    final top = (offset.dy - 56).clamp(8.0, double.infinity);
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 140, maxWidth: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+            border: Border.all(color: AppColors.grey200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                entry?.districtName ?? id,
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+              if (entry != null) ...[
+                const SizedBox(height: 3),
+                Row(children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: riskColor(entry.riskLevel.name),
+                    ),
+                  ),
+                  Text(
+                    entry.riskLevel.label.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: riskColor(entry.riskLevel.name),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 2),
+                Text(
+                  'NDVI: ${entry.ndvi.toStringAsFixed(2)}  '
+                  'Score: ${entry.riskScore.toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:dio/dio.dart';
+import 'package:cropsense/config/app_config.dart';
 
 class RegressionResult {
   final double slope, intercept, rSquared, pValue, stdError;
@@ -92,8 +94,7 @@ abstract class StatsUtils {
     final sum4 = data
         .map((x) => math.pow((x - m) / s, 4).toDouble())
         .reduce((a, b) => a + b);
-    final k =
-        (n.toDouble() * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * sum4;
+    final k = (n.toDouble() * (n + 1)) / ((n - 1) * (n - 2) * (n - 3)) * sum4;
     return k - 3.0 * (n - 1) * (n - 1) / ((n - 2) * (n - 3));
   }
 
@@ -276,8 +277,7 @@ abstract class StatsUtils {
         s.firstWhere((v) => v >= q1 - fence, orElse: () => s.first);
     final whiskerMax =
         s.lastWhere((v) => v <= q3 + fence, orElse: () => s.last);
-    final outliers =
-        s.where((v) => v < whiskerMin || v > whiskerMax).toList();
+    final outliers = s.where((v) => v < whiskerMin || v > whiskerMax).toList();
     return BoxPlotStats(
         min: whiskerMin,
         q1: q1,
@@ -311,15 +311,13 @@ abstract class StatsUtils {
   static double _betaInc(double x, double a, double b) {
     if (x <= 0) return 0;
     if (x >= 1) return 1;
-    final front = math.exp(
-            math.log(x) * a + math.log(1 - x) * b - _logBeta(a, b)) /
-        a;
+    final front =
+        math.exp(math.log(x) * a + math.log(1 - x) * b - _logBeta(a, b)) / a;
     return front * _betaCF(a, b, x);
   }
 
   static double _betaCF(double a, double b, double x) {
-    double c = 1.0,
-        d = 1.0 - (a + b) * x / (a + 1);
+    double c = 1.0, d = 1.0 - (a + b) * x / (a + 1);
     if (d.abs() < 1e-30) d = 1e-30;
     d = 1.0 / d;
     double res = d;
@@ -351,20 +349,28 @@ abstract class StatsUtils {
   static double _logGamma(double x) {
     const g = 7.0;
     const c = [
-      0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-      771.32342877765313, -176.61502916214059, 12.507343278686905,
-      -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+      0.99999999999980993,
+      676.5203681218851,
+      -1259.1392167224028,
+      771.32342877765313,
+      -176.61502916214059,
+      12.507343278686905,
+      -0.13857109526572012,
+      9.9843695780195716e-6,
+      1.5056327351493116e-7
     ];
     if (x < 0.5) {
       return math.log(math.pi / math.sin(math.pi * x)) - _logGamma(1 - x);
     }
     final z = x - 1;
-    double t = z + g + 0.5;
+    final t = z + g + 0.5;
     double sum = c[0];
     for (int i = 1; i < c.length; i++) {
       sum += c[i] / (z + i);
     }
-    return 0.5 * math.log(2 * math.pi) + (z + 0.5) * math.log(t) - t +
+    return 0.5 * math.log(2 * math.pi) +
+        (z + 0.5) * math.log(t) -
+        t +
         math.log(sum);
   }
 
@@ -403,7 +409,8 @@ abstract class StatsUtils {
 
   static double chiSquarePValue(double chi2) {
     // CDF of chi-square with df=1 via normalCDF
-    return 1 - normalCDF(math.sqrt(2 * chi2), 0, 1) * 2 +
+    return 1 -
+        normalCDF(math.sqrt(2 * chi2), 0, 1) * 2 +
         (normalCDF(0, 0, 1) * 2 - 1);
     // Simple: P-value = 1 - chi2_cdf(chi2, df=1) ≈ 2*(1 - normalCDF(sqrt(chi2)))
   }
@@ -411,5 +418,37 @@ abstract class StatsUtils {
   static double chiSquarePValueDf1(double chi2) {
     if (chi2 <= 0) return 1.0;
     return (2 * (1 - normalCDF(math.sqrt(chi2), 0, 1))).clamp(0.0, 1.0);
+  }
+
+  // ── Remote fetch helpers ────────────────────────────────────────────────
+  static Dio? _dio;
+  static Dio get _client {
+    _dio ??= Dio(BaseOptions(
+      baseUrl: AppConfig.apiBaseUrl,
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
+    ));
+    return _dio!;
+  }
+
+  static Future<Map<String, dynamic>?> fetchDistrictStats(
+      String district, String crop) async {
+    try {
+      final resp = await _client.get('/api/stats/$district/$crop');
+      return resp.data as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> fetchComparison(
+      String district1, String district2, String crop) async {
+    try {
+      final resp = await _client.get(
+          '/api/compare?district1=$district1&district2=$district2&crop=$crop');
+      return resp.data as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
   }
 }

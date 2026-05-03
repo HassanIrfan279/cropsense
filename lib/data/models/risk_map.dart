@@ -15,33 +15,48 @@ part 'risk_map.g.dart';
 // The @JsonValue annotations tell JSON serialization what string to expect.
 // ─────────────────────────────────────────────────────────────────────────
 enum RiskLevel {
-  @JsonValue('good')     good,
-  @JsonValue('above')    above,
-  @JsonValue('watch')    watch,
-  @JsonValue('high')     high,
-  @JsonValue('critical') critical,
+  @JsonValue('good')
+  good,
+  @JsonValue('above')
+  above,
+  @JsonValue('watch')
+  watch,
+  @JsonValue('high')
+  high,
+  @JsonValue('critical')
+  critical,
 }
 
 // Helper: convert RiskLevel enum to display string
 extension RiskLevelLabel on RiskLevel {
   String get label {
     switch (this) {
-      case RiskLevel.good:     return 'Good';
-      case RiskLevel.above:    return 'Above Average';
-      case RiskLevel.watch:    return 'Watch';
-      case RiskLevel.high:     return 'High Risk';
-      case RiskLevel.critical: return 'Critical';
+      case RiskLevel.good:
+        return 'Good';
+      case RiskLevel.above:
+        return 'Above Average';
+      case RiskLevel.watch:
+        return 'Watch';
+      case RiskLevel.high:
+        return 'High Risk';
+      case RiskLevel.critical:
+        return 'Critical';
     }
   }
 
   // Returns the hex color string for this risk level
   String get colorHex {
     switch (this) {
-      case RiskLevel.good:     return '#1B5E20';
-      case RiskLevel.above:    return '#8BC34A';
-      case RiskLevel.watch:    return '#FF8F00';
-      case RiskLevel.high:     return '#E65100';
-      case RiskLevel.critical: return '#B71C1C';
+      case RiskLevel.good:
+        return '#1B5E20';
+      case RiskLevel.above:
+        return '#8BC34A';
+      case RiskLevel.watch:
+        return '#FF8F00';
+      case RiskLevel.high:
+        return '#E65100';
+      case RiskLevel.critical:
+        return '#B71C1C';
     }
   }
 }
@@ -67,6 +82,18 @@ class RiskMapEntry with _$RiskMapEntry {
     // Yield forecasts per crop: { "wheat": 2.3, "rice": 1.8, ... }
     // Using Map<String, double> because crops may vary by district
     @Default({}) Map<String, double> cropYields,
+    @Default('') String selectedCrop,
+    int? selectedYear,
+    double? yieldTAcre,
+    double? productionTons,
+    double? rainfallMm,
+    double? yieldChangePct,
+    @Default(true) bool dataAvailable,
+    @Default('') String dataSource,
+    @Default([]) List<String> weatherRisks,
+    @Default([]) List<String> cropRisks,
+    @Default('') String aiExplanation,
+    @Default([]) List<String> limitations,
 
     // Current NDVI for quick display on map tooltip
     @Default(0.0) double ndvi,
@@ -94,6 +121,10 @@ class RiskMapResponse with _$RiskMapResponse {
     @Default(0) int criticalCount,
     @Default(0) int highCount,
     @Default(0) int watchCount,
+    @Default('') String selectedCrop,
+    int? selectedYear,
+    @Default('') String yearRange,
+    @Default('') String dataSource,
   }) = _RiskMapResponse;
 
   factory RiskMapResponse.fromJson(Map<String, dynamic> json) =>

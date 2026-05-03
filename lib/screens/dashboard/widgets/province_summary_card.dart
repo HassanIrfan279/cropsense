@@ -32,13 +32,9 @@ class ProvinceSummaryCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF3F8F3)],
-        ),
+        gradient: AppGradients.cardSubtle,
         borderRadius: AppRadius.cardRadius,
-        border: Border.all(color: AppColors.grey200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
         boxShadow: AppShadows.card,
       ),
       child: Row(
@@ -80,10 +76,12 @@ class ProvinceSummaryCard extends StatelessWidget {
                         border: Border.all(
                             color: color.withValues(alpha: 0.28), width: 1),
                       ),
-                      child: Text(label, style: TextStyle(
-                        color: color, fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      )),
+                      child: Text(label,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          )),
                     ),
                   ]),
 
@@ -126,8 +124,7 @@ class ProvinceSummaryCard extends StatelessWidget {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.xs + 2,
-                        horizontal: AppSpacing.sm),
+                        vertical: AppSpacing.xs + 2, horizontal: AppSpacing.sm),
                     decoration: BoxDecoration(
                       color: AppColors.limeGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -183,9 +180,10 @@ class _StatChip extends StatelessWidget {
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 5),
           Flexible(
-            child: Text(label, style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: color),
-              overflow: TextOverflow.ellipsis),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: color),
+                overflow: TextOverflow.ellipsis),
           ),
         ]),
       ),

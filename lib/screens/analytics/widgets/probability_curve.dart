@@ -33,10 +33,10 @@ class ProbabilityCurve extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: AppGradients.cardSubtle,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+        boxShadow: AppShadows.card,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -45,14 +45,23 @@ class ProbabilityCurve extends StatelessWidget {
           Row(children: [
             Container(
               padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(color: AppColors.burntOrange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.show_chart_rounded, color: AppColors.burntOrange, size: 18),
+              decoration: BoxDecoration(
+                  color: AppColors.burntOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.show_chart_rounded,
+                  color: AppColors.burntOrange, size: 18),
             ),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Drought Probability', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A))),
-              Text('P(yield < \${threshold}t/ac) = \${_calcProb().toStringAsFixed(1)}%',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF757575))),
+              const Text('Drought Probability',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1A1A))),
+              Text(
+                  'P(yield < ${threshold}t/ac) = ${_calcProb().toStringAsFixed(1)}%',
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF757575))),
             ]),
           ]),
           const SizedBox(height: 16),
@@ -62,18 +71,25 @@ class ProbabilityCurve extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFEEEEEE), strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) =>
+                      const FlLine(color: Color(0xFFEEEEEE), strokeWidth: 1),
                 ),
                 titlesData: FlTitlesData(
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      getTitlesWidget: (v, _) => Text('\${v.toStringAsFixed(1)}t', style: const TextStyle(fontSize: 9, color: Color(0xFF757575))),
+                      getTitlesWidget: (v, _) => Text(
+                          '${v.toStringAsFixed(1)}t',
+                          style: const TextStyle(
+                              fontSize: 9, color: Color(0xFF757575))),
                     ),
                   ),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
@@ -83,7 +99,9 @@ class ProbabilityCurve extends StatelessWidget {
                     color: AppColors.skyBlue,
                     barWidth: 2,
                     dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: AppColors.skyBlue.withValues(alpha: 0.08)),
+                    belowBarData: BarAreaData(
+                        show: true,
+                        color: AppColors.skyBlue.withValues(alpha: 0.08)),
                   ),
                   LineChartBarData(
                     spots: droughtSpots,
@@ -91,7 +109,9 @@ class ProbabilityCurve extends StatelessWidget {
                     color: AppColors.burntOrange,
                     barWidth: 2,
                     dotData: const FlDotData(show: false),
-                    belowBarData: BarAreaData(show: true, color: AppColors.burntOrange.withValues(alpha: 0.25)),
+                    belowBarData: BarAreaData(
+                        show: true,
+                        color: AppColors.burntOrange.withValues(alpha: 0.25)),
                   ),
                 ],
                 extraLinesData: ExtraLinesData(verticalLines: [
@@ -103,7 +123,8 @@ class ProbabilityCurve extends StatelessWidget {
                     label: VerticalLineLabel(
                       show: true,
                       labelResolver: (_) => 'Drought\nThreshold',
-                      style: const TextStyle(fontSize: 9, color: AppColors.burntOrange),
+                      style: const TextStyle(
+                          fontSize: 9, color: AppColors.burntOrange),
                     ),
                   ),
                 ]),

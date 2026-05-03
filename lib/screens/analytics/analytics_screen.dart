@@ -1,2434 +1,3242 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cropsense/core/constants.dart';
 import 'package:cropsense/core/theme.dart';
-import 'package:cropsense/core/stats_utils.dart';
-import 'package:cropsense/data/models/yield_data.dart';
-import 'package:cropsense/providers/yield_provider.dart';
-
-// ─── Shared helpers ───────────────────────────────────────────────────────────
-
-class _StatChip extends StatelessWidget {
-  final String label, interpretation, unit;
-  final double value;
-  final Color color;
-  final int delay;
-  final int decimals;
-
-  const _StatChip({
-    required this.label,
-    required this.value,
-    required this.color,
-    this.interpretation = '',
-    this.unit = '',
-    this.delay = 0,
-    this.decimals = 2,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      key: ValueKey('chip-$label-${value.toStringAsFixed(3)}'),
-      tween: Tween(begin: 0.0, end: value),
-      duration: const Duration(milliseconds: 1100),
-      curve: Curves.easeOut,
-      builder: (_, v, __) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
-          boxShadow: AppShadows.card,
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(
-            '${v.toStringAsFixed(decimals)}$unit',
-            style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: color,
-                letterSpacing: -0.5),
-          ),
-          const SizedBox(height: 2),
-          Text(label, style: AppTextStyles.label),
-          if (interpretation.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(interpretation,
-                style: AppTextStyles.bodySmall
-                    .copyWith(fontSize: 9.5, color: AppColors.grey600),
-                textAlign: TextAlign.center),
-          ],
-        ]),
-      ),
-    )
-        .animate(delay: Duration(milliseconds: delay))
-        .fadeIn(duration: 350.ms)
-        .slideY(begin: 0.12, end: 0);
-  }
-}
-
-class _ChartCard extends StatelessWidget {
-  final String title;
-  final String? subtitle;
-  final Widget child;
-  final List<List<String>>? csvData;
-
-  const _ChartCard({
-    required this.title,
-    required this.child,
-    this.subtitle,
-    this.csvData,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 0),
-          child: Row(children: [
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AppTextStyles.headingSmall),
-                    if (subtitle != null)
-                      Text(subtitle!,
-                          style: AppTextStyles.bodySmall
-                              .copyWith(color: AppColors.grey600)),
-                  ]),
-            ),
-            if (csvData != null)
-              IconButton(
-                icon: const Icon(Icons.download_rounded, size: 18),
-                color: AppColors.grey400,
-                tooltip: 'Copy CSV',
-                onPressed: () {
-                  final csv = csvData!.map((r) => r.join(',')).join('\n');
-                  Clipboard.setData(ClipboardData(text: csv));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('CSV copied to clipboard'),
-                    duration: Duration(seconds: 2),
-                  ));
-                },
-              ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 6, 4, 12),
-          child: child,
-        ),
-      ]),
-    );
-  }
-}
-
-class _BoxPlotPainter extends CustomPainter {
-  final BoxPlotStats stats;
-  final Color color;
-  final double minY, maxY;
-
-  const _BoxPlotPainter(
-      {required this.stats,
-      required this.color,
-      required this.minY,
-      required this.maxY});
-
-  double _py(double v, double h) {
-    final range = maxY - minY;
-    if (range == 0) return h / 2;
-    return h - ((v - minY) / range) * h * 0.9 - h * 0.05;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    final cx = w / 2, bw = w * 0.32;
-
-    final fill = Paint()
-      ..color = color.withValues(alpha: 0.25)
-      ..style = PaintingStyle.fill;
-    final line = Paint()
-      ..color = color
-      ..strokeWidth = 1.8
-      ..style = PaintingStyle.stroke;
-    final med = Paint()
-      ..color = color
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    final q1y = _py(stats.q1, h);
-    final q3y = _py(stats.q3, h);
-    final medy = _py(stats.median, h);
-    final miny = _py(stats.min, h);
-    final maxy = _py(stats.max, h);
-
-    canvas.drawRect(Rect.fromLTRB(cx - bw, q3y, cx + bw, q1y), fill);
-    canvas.drawRect(Rect.fromLTRB(cx - bw, q3y, cx + bw, q1y), line);
-    canvas.drawLine(Offset(cx - bw, medy), Offset(cx + bw, medy), med);
-    canvas.drawLine(Offset(cx, q3y), Offset(cx, maxy), line);
-    canvas.drawLine(Offset(cx, q1y), Offset(cx, miny), line);
-    final capW = bw * 0.45;
-    canvas.drawLine(Offset(cx - capW, maxy), Offset(cx + capW, maxy), line);
-    canvas.drawLine(Offset(cx - capW, miny), Offset(cx + capW, miny), line);
-
-    for (final o in stats.outliers) {
-      canvas.drawCircle(
-          Offset(cx, _py(o, h)),
-          3.5,
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.fill);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BoxPlotPainter o) =>
-      o.stats != stats || o.minY != minY || o.maxY != maxY;
-}
-
-class _NormDistPainter extends CustomPainter {
-  final double mu, sigma, droughtLine;
-
-  const _NormDistPainter(
-      {required this.mu, required this.sigma, this.droughtLine = 1.2});
-
-  static const double _xMin = 0.0, _xMax = 6.0;
-
-  double _px(double x, double w) => (x - _xMin) / (_xMax - _xMin) * w;
-  double _py(double pdf, double maxPdf, double h) =>
-      h - (maxPdf == 0 ? 0 : pdf / maxPdf * h * 0.82) - h * 0.05;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (sigma <= 0) return;
-    final w = size.width, h = size.height;
-    final maxPdf = StatsUtils.normalPDF(mu, mu, sigma);
-
-    void fillBand(double x1, double x2, Color c) {
-      final path = Path();
-      const steps = 150;
-      final dx = (x2 - x1) / steps;
-      path.moveTo(_px(x1, w), h);
-      for (int i = 0; i <= steps; i++) {
-        final x = x1 + i * dx;
-        path.lineTo(_px(x, w),
-            _py(StatsUtils.normalPDF(x, mu, sigma), maxPdf, h));
-      }
-      path.lineTo(_px(x2, w), h);
-      path.close();
-      canvas.drawPath(path, Paint()..color = c..style = PaintingStyle.fill);
-    }
-
-    fillBand(mu - 2 * sigma, mu + 2 * sigma, const Color(0xFFDCEDC8));
-    fillBand(
-        mu - sigma,
-        mu + sigma,
-        AppColors.limeGreen.withValues(alpha: 0.45));
-
-    final curvePath = Path();
-    const steps = 280;
-    for (int i = 0; i <= steps; i++) {
-      final x = _xMin + (_xMax - _xMin) * i / steps;
-      final px = _px(x, w);
-      final py = _py(StatsUtils.normalPDF(x, mu, sigma), maxPdf, h);
-      i == 0 ? curvePath.moveTo(px, py) : curvePath.lineTo(px, py);
-    }
-    canvas.drawPath(
-        curvePath,
-        Paint()
-          ..color = AppColors.deepGreen
-          ..strokeWidth = 2.2
-          ..style = PaintingStyle.stroke);
-
-    if (droughtLine >= _xMin && droughtLine <= _xMax) {
-      canvas.drawLine(
-          Offset(_px(droughtLine, w), 0),
-          Offset(_px(droughtLine, w), h),
-          Paint()
-            ..color = AppColors.burntOrange
-            ..strokeWidth = 2
-            ..style = PaintingStyle.stroke);
-    }
-
-    // Mean dashed line
-    final mx = _px(mu, w);
-    final dp = Paint()
-      ..color = AppColors.deepGreen.withValues(alpha: 0.55)
-      ..strokeWidth = 1.5;
-    for (double y = 0; y < h; y += 10) {
-      canvas.drawLine(Offset(mx, y), Offset(mx, math.min(y + 5, h)), dp);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_NormDistPainter o) =>
-      o.mu != mu || o.sigma != sigma || o.droughtLine != droughtLine;
-}
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
+import 'package:cropsense/core/utils.dart';
+import 'package:cropsense/providers/analytics_provider.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
+
   @override
   ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen>
-    with TickerProviderStateMixin {
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   String _district = 'faisalabad';
-  String _crop = 'wheat';
-  String _district2 = '';
+  String _crop = 'all';
+  String _season = 'all';
+  String _soilType = 'loam';
+  double _farmAcres = 5.0;
   RangeValues _yearRange = const RangeValues(2005, 2023);
-  late final TabController _tabCtrl;
+  int _selectedSection = 0;
 
-  // Probability tab sliders
-  double _droughtNdvi = 0.50;
-  double _droughtRain = 250;
-  double _excThreshold = 2.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 5, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabCtrl.dispose();
-    super.dispose();
-  }
-
-  List<YieldData> _filter(List<YieldData> data) => (data
-        .where((d) =>
-            d.year >= _yearRange.start.round() &&
-            d.year <= _yearRange.end.round())
-        .toList()
-      ..sort((a, b) => a.year.compareTo(b.year)));
-
-  String _districtLabel(String id) =>
-      AppDistricts.all.firstWhere((d) => d['id'] == id,
-          orElse: () => {'label': id})['label']!;
+  AnalyticsFilters get _filters => AnalyticsFilters(
+        district: _district,
+        crop: _crop,
+        season: _season,
+        startYear: _yearRange.start.round(),
+        endYear: _yearRange.end.round(),
+        soilType: _soilType,
+        farmAcres: _farmAcres,
+      );
 
   @override
   Widget build(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    final isWide = w >= 1200;
-    final yieldAsync = ref.watch(cropYieldProvider((_district, _crop)));
-    final d2 = _district2.isEmpty ? _district : _district2;
-    final yield2Async = ref.watch(cropYieldProvider((d2, _crop)));
+    final analytics = ref.watch(analyticsProvider(_filters));
 
     return Scaffold(
       backgroundColor: AppColors.offWhite,
-      body: Column(children: [
-        _buildToolbar(isWide),
-        Container(
-          color: AppColors.cardSurface,
-          child: TabBar(
-            controller: _tabCtrl,
-            isScrollable: w < 700,
-            labelColor: AppColors.deepGreen,
-            unselectedLabelColor: AppColors.grey600,
-            indicatorColor: AppColors.deepGreen,
-            indicatorWeight: 3,
-            labelStyle: AppTextStyles.label
-                .copyWith(fontWeight: FontWeight.w700, letterSpacing: 0),
-            tabs: const [
-              Tab(text: 'Overview'),
-              Tab(text: 'Probability'),
-              Tab(text: 'Hypothesis'),
-              Tab(text: 'Comparison'),
-              Tab(text: 'Regression'),
-            ],
+      body: Column(
+        children: [
+          _Header(
+            district: _district,
+            crop: _crop,
+            season: _season,
+            soilType: _soilType,
+            farmAcres: _farmAcres,
+            yearRange: _yearRange,
+            onDistrictChanged: (value) => setState(() => _district = value),
+            onCropChanged: (value) => setState(() => _crop = value),
+            onSeasonChanged: (value) => setState(() => _season = value),
+            onSoilChanged: (value) => setState(() => _soilType = value),
+            onFarmAcresChanged: (value) => setState(() => _farmAcres = value),
+            onYearRangeChanged: (value) => setState(() => _yearRange = value),
           ),
-        ),
-        Expanded(
-          child: yieldAsync.when(
-            loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.deepGreen)),
-            error: (e, _) =>
-                Center(child: Text('Error: $e', style: AppTextStyles.bodyMedium)),
-            data: (resp) {
-              final data = _filter(resp.data);
-              final data2 = _district2.isNotEmpty
-                  ? yield2Async.value?.let((r) => _filter(r.data))
-                  : null;
-              if (data.isEmpty) {
-                return const Center(child: Text('No data in selected range'));
-              }
-              return TabBarView(
-                controller: _tabCtrl,
-                children: [
-                  _OverviewTab(data: data, isWide: isWide),
-                  _ProbabilityTab(
-                    data: data,
-                    isWide: isWide,
-                    droughtNdvi: _droughtNdvi,
-                    droughtRain: _droughtRain,
-                    excThreshold: _excThreshold,
-                    onDroughtNdvi: (v) => setState(() => _droughtNdvi = v),
-                    onDroughtRain: (v) => setState(() => _droughtRain = v),
-                    onExcThreshold: (v) => setState(() => _excThreshold = v),
-                  ),
-                  _HypothesisTab(
-                    data: data,
-                    data2: data2,
-                    district1: _districtLabel(_district),
-                    district2: _district2.isEmpty ? '' : _districtLabel(_district2),
-                  ),
-                  _ComparisonTab(
-                    data1: data,
-                    data2: data2,
-                    district1: _districtLabel(_district),
-                    district2: _district2,
-                    crop: _crop,
-                    isWide: isWide,
-                    onDistrict2Change: (v) => setState(() => _district2 = v),
-                  ),
-                  _RegressionTab(data: data, isWide: isWide),
-                ],
-              );
-            },
+          Expanded(
+            child: analytics.when(
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.deepGreen),
+              ),
+              error: (error, _) => _ErrorState(message: error.toString()),
+              data: (data) => _AnalyticsBody(
+                data: data,
+                selectedSection: _selectedSection,
+                onSectionChanged: (index) =>
+                    setState(() => _selectedSection = index),
+              ),
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildToolbar(bool isWide) {
-    final districts = AppDistricts.all;
-    final crops = AppCrops.all;
+class _Header extends StatelessWidget {
+  final String district;
+  final String crop;
+  final String season;
+  final String soilType;
+  final double farmAcres;
+  final RangeValues yearRange;
+  final ValueChanged<String> onDistrictChanged;
+  final ValueChanged<String> onCropChanged;
+  final ValueChanged<String> onSeasonChanged;
+  final ValueChanged<String> onSoilChanged;
+  final ValueChanged<double> onFarmAcresChanged;
+  final ValueChanged<RangeValues> onYearRangeChanged;
+
+  const _Header({
+    required this.district,
+    required this.crop,
+    required this.season,
+    required this.soilType,
+    required this.farmAcres,
+    required this.yearRange,
+    required this.onDistrictChanged,
+    required this.onCropChanged,
+    required this.onSeasonChanged,
+    required this.onSoilChanged,
+    required this.onFarmAcresChanged,
+    required this.onYearRangeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 900;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: const BoxDecoration(
         color: AppColors.cardSurface,
         border: Border(bottom: BorderSide(color: AppColors.grey200)),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _dropdown(
-            value: _district,
-            items: districts
-                .map((d) => DropdownMenuItem(value: d['id'], child: Text(d['label']!)))
-                .toList(),
-            onChanged: (v) => setState(() => _district = v!),
-            icon: Icons.location_on_rounded,
-          ),
-          _dropdown(
-            value: _crop,
-            items: crops
-                .map((c) => DropdownMenuItem(value: c['id'], child: Text(c['label']!)))
-                .toList(),
-            onChanged: (v) => setState(() => _crop = v!),
-            icon: Icons.grass_rounded,
-          ),
-          if (isWide) ...[
-            const SizedBox(width: 8),
-            const Text('Year range:', style: TextStyle(fontSize: 12, color: AppColors.grey600)),
-            SizedBox(
-              width: 280,
-              child: RangeSlider(
-                values: _yearRange,
-                min: 2005,
-                max: 2023,
-                divisions: 18,
-                labels: RangeLabels(
-                    '${_yearRange.start.round()}', '${_yearRange.end.round()}'),
-                activeColor: AppColors.deepGreen,
-                inactiveColor: AppColors.grey200,
-                onChanged: (v) => setState(() => _yearRange = v),
-              ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              compact ? 16 : 24,
+              14,
+              compact ? 16 : 24,
+              6,
             ),
-            Text(
-              '${_yearRange.start.round()} – ${_yearRange.end.round()}',
-              style: AppTextStyles.label,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.deepGreen.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.analytics_rounded,
+                    color: AppColors.deepGreen,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Analytics', style: AppTextStyles.headingMedium),
+                      Text(
+                        'Split-view crop intelligence with statistical testing',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.fromLTRB(
+              compact ? 16 : 24,
+              8,
+              compact ? 16 : 24,
+              12,
+            ),
+            child: Row(
+              children: [
+                _FilterDropdown(
+                  label: 'Location',
+                  value: district,
+                  width: 190,
+                  icon: Icons.location_on_rounded,
+                  items: AppDistricts.all
+                      .map((d) => DropdownMenuItem(
+                            value: d['id'],
+                            child: Text(d['label']!),
+                          ))
+                      .toList(),
+                  onChanged: onDistrictChanged,
+                ),
+                _FilterDropdown(
+                  label: 'Crop',
+                  value: crop,
+                  width: 155,
+                  icon: Icons.agriculture_rounded,
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'all',
+                      child: Text('All crops'),
+                    ),
+                    ...AppCrops.all.map(
+                      (c) => DropdownMenuItem(
+                        value: c['id'],
+                        child: Text(c['label']!),
+                      ),
+                    ),
+                  ],
+                  onChanged: onCropChanged,
+                ),
+                _FilterDropdown(
+                  label: 'Season',
+                  value: season,
+                  width: 135,
+                  icon: Icons.calendar_month_rounded,
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All')),
+                    DropdownMenuItem(value: 'Rabi', child: Text('Rabi')),
+                    DropdownMenuItem(value: 'Kharif', child: Text('Kharif')),
+                    DropdownMenuItem(value: 'Annual', child: Text('Annual')),
+                  ],
+                  onChanged: onSeasonChanged,
+                ),
+                _FilterDropdown(
+                  label: 'Soil',
+                  value: soilType,
+                  width: 135,
+                  icon: Icons.terrain_rounded,
+                  items: const [
+                    DropdownMenuItem(value: 'loam', child: Text('Loam')),
+                    DropdownMenuItem(value: 'clay', child: Text('Clay')),
+                    DropdownMenuItem(value: 'sandy', child: Text('Sandy')),
+                    DropdownMenuItem(value: 'saline', child: Text('Saline')),
+                    DropdownMenuItem(value: 'mixed', child: Text('Mixed')),
+                  ],
+                  onChanged: onSoilChanged,
+                ),
+                _RangeFilter(
+                  value: yearRange,
+                  onChanged: onYearRangeChanged,
+                ),
+                _FarmAreaFilter(
+                  value: farmAcres,
+                  onChanged: onFarmAcresChanged,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
-
-  Widget _dropdown<T>({
-    required T value,
-    required List<DropdownMenuItem<T>> items,
-    required ValueChanged<T?> onChanged,
-    required IconData icon,
-  }) {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.offWhite,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.grey200),
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: AppColors.deepGreen),
-        const SizedBox(width: 6),
-        DropdownButtonHideUnderline(
-          child: DropdownButton<T>(
-            value: value,
-            items: items,
-            onChanged: onChanged,
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.darkText),
-            isDense: true,
-          ),
-        ),
-      ]),
-    );
-  }
 }
 
-extension _Let<T> on T {
-  R let<R>(R Function(T) f) => f(this);
-}
+class _AnalyticsBody extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final int selectedSection;
+  final ValueChanged<int> onSectionChanged;
 
-// ─── Tab 1: Overview ──────────────────────────────────────────────────────────
-
-class _OverviewTab extends StatelessWidget {
-  final List<YieldData> data;
-  final bool isWide;
-  const _OverviewTab({required this.data, required this.isWide});
+  const _AnalyticsBody({
+    required this.data,
+    required this.selectedSection,
+    required this.onSectionChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final yields = data.map((d) => d.yieldTAcre).toList();
-    final ndvis = data.map((d) => d.ndvi).toList();
-    final years = data.map((d) => d.year.toDouble()).toList();
+    final summary = _map(data['summary']);
+    final demo = data['isDemoData'] == true;
 
-    final mn = StatsUtils.mean(yields);
-    final med = StatsUtils.median(yields);
-    final sd = StatsUtils.standardDeviation(yields);
-    final cv = StatsUtils.coefficientOfVariation(yields);
-    final iq = StatsUtils.iqr(yields);
-    final sk = StatsUtils.skewness(yields);
-    final ku = StatsUtils.kurtosis(yields);
-    final reg = StatsUtils.linearRegression(years, yields);
-
-    String cvInterp = cv < 15 ? 'Low variability' : cv < 30 ? 'Moderate' : 'High variability';
-    String skInterp = sk.abs() < 0.5 ? 'Approx. normal' : sk > 0 ? 'Right-skewed' : 'Left-skewed';
-    String kuInterp = ku.abs() < 1 ? 'Mesokurtic' : ku > 0 ? 'Leptokurtic' : 'Platykurtic';
-
-    final chips = [
-      _StatChip(label: 'Mean', value: mn, color: AppColors.deepGreen, unit: ' t/a', delay: 0),
-      _StatChip(label: 'Median', value: med, color: AppColors.skyBlue, unit: ' t/a', delay: 60),
-      _StatChip(label: 'Std Dev', value: sd, color: AppColors.amber, unit: ' t/a', delay: 120),
-      _StatChip(label: 'CV %', value: cv, color: AppColors.burntOrange,
-          interpretation: cvInterp, unit: '%', delay: 180),
-      _StatChip(label: 'IQR', value: iq, color: AppColors.limeGreen, unit: ' t/a', delay: 240),
-      _StatChip(label: 'Skewness', value: sk, color: AppColors.grey800,
-          interpretation: skInterp, delay: 300),
-      _StatChip(label: 'Kurtosis', value: ku, color: AppColors.grey600,
-          interpretation: kuInterp, delay: 360),
-    ];
-
-    final bestD = data.reduce((a, b) => a.yieldTAcre > b.yieldTAcre ? a : b);
-    final worstD = data.reduce((a, b) => a.yieldTAcre < b.yieldTAcre ? a : b);
-
-    final ndviSpots = data
-        .asMap()
-        .entries
-        .map((e) => FlSpot(e.value.year.toDouble(), e.value.ndvi))
-        .toList();
-    final yieldCsvRows = [
-      ['Year', 'Yield (t/a)', 'NDVI', 'Rainfall (mm)'],
-      ...data.map((d) => [
-            d.year.toString(),
-            d.yieldTAcre.toStringAsFixed(2),
-            d.ndvi.toStringAsFixed(3),
-            d.rainfallMm.toStringAsFixed(0),
-          ]),
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Stat chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-              children: chips
-                  .map((c) => Container(
-                        width: 120,
-                        margin: const EdgeInsets.only(right: 8),
-                        child: c,
-                      ))
-                  .toList()),
+    return Column(
+      children: [
+        _TopSummaryPanel(summary: summary),
+        if (demo)
+          _NoticeBanner(
+            icon: Icons.info_rounded,
+            color: AppColors.amber,
+            text: _str(
+              data['dataSource'],
+              'Some analytics use transparent demo assumptions where field-level records are missing.',
+            ),
+          ),
+        Expanded(
+          child: _AnalyticsWorkspace(
+            data: data,
+            selectedSection: selectedSection,
+            onSectionChanged: onSectionChanged,
+          ),
         ),
-        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
 
-        // Charts grid
-        if (isWide)
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _ndviChart(ndviSpots, ndvis, years, yieldCsvRows)),
-            const SizedBox(width: 14),
-            Expanded(child: _yieldBarChart(data, yieldCsvRows)),
-          ])
-        else ...[
-          _ndviChart(ndviSpots, ndvis, years, yieldCsvRows),
-          const SizedBox(height: 14),
-          _yieldBarChart(data, yieldCsvRows),
-        ],
-        const SizedBox(height: 16),
+class _AnalyticsWorkspace extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final int selectedSection;
+  final ValueChanged<int> onSectionChanged;
 
-        // Insights panel
-        _insightsPanel(bestD, worstD, reg, mn).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
-      ]),
+  const _AnalyticsWorkspace({
+    required this.data,
+    required this.selectedSection,
+    required this.onSectionChanged,
+  });
+
+  static const menu = [
+    _AnalyticsMenuItem('Summary', Icons.summarize_rounded),
+    _AnalyticsMenuItem('Trend', Icons.trending_up_rounded),
+    _AnalyticsMenuItem('Profit', Icons.payments_rounded),
+    _AnalyticsMenuItem('Weather', Icons.cloud_rounded),
+    _AnalyticsMenuItem('Risk', Icons.warning_rounded),
+    _AnalyticsMenuItem('Testing', Icons.science_rounded),
+    _AnalyticsMenuItem('AI Insights', Icons.psychology_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 850;
+        final page = _selectedPage();
+
+        if (compact) {
+          return Column(
+            children: [
+              _HorizontalAnalyticsMenu(
+                items: menu,
+                selectedIndex: selectedSection,
+                onSelected: onSectionChanged,
+              ),
+              Expanded(
+                child: DecoratedBox(
+                  decoration: const BoxDecoration(color: AppColors.offWhite),
+                  child: page,
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 220,
+              child: _VerticalAnalyticsMenu(
+                items: menu,
+                selectedIndex: selectedSection,
+                onSelected: onSectionChanged,
+              ),
+            ),
+            const VerticalDivider(width: 1, color: AppColors.grey200),
+            Expanded(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(color: AppColors.offWhite),
+                child: page,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _ndviChart(List<FlSpot> spots, List<double> ndvis, List<double> years,
-      List<List<String>> csv) {
-    return _ChartCard(
-      title: 'NDVI Timeline',
-      subtitle: 'Vegetation health index (0–1)',
-      csvData: csv,
-      child: SizedBox(
-        height: 200,
-        child: LineChart(LineChartData(
-          minY: 0.3,
-          maxY: 0.9,
+  Widget _selectedPage() {
+    switch (selectedSection) {
+      case 0:
+        return _SummaryPage(data: data);
+      case 1:
+        return _TrendPage(data: data);
+      case 2:
+        return _ProfitPage(data: data);
+      case 3:
+        return _WeatherPage(data: data);
+      case 4:
+        return _RiskPage(data: data);
+      case 5:
+        return _TestingPage(data: data);
+      case 6:
+        return _AiInsightsPage(data: data);
+      default:
+        return _SummaryPage(data: data);
+    }
+  }
+}
+
+class _AnalyticsMenuItem {
+  final String label;
+  final IconData icon;
+  const _AnalyticsMenuItem(this.label, this.icon);
+}
+
+class _VerticalAnalyticsMenu extends StatelessWidget {
+  final List<_AnalyticsMenuItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _VerticalAnalyticsMenu({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.cardSurface,
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+            child: Text(
+              'Analytics Menu',
+              style: AppTextStyles.label.copyWith(letterSpacing: 0),
+            ),
+          ),
+          ...List.generate(
+            items.length,
+            (index) => _MenuButton(
+              item: items[index],
+              selected: index == selectedIndex,
+              onTap: () => onSelected(index),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HorizontalAnalyticsMenu extends StatelessWidget {
+  final List<_AnalyticsMenuItem> items;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _HorizontalAnalyticsMenu({
+    required this.items,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 62,
+      decoration: const BoxDecoration(
+        color: AppColors.cardSurface,
+        border: Border(bottom: BorderSide(color: AppColors.grey200)),
+      ),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final selected = index == selectedIndex;
+          return ChoiceChip(
+            selected: selected,
+            avatar: Icon(
+              items[index].icon,
+              size: 17,
+              color: selected ? Colors.white : AppColors.deepGreen,
+            ),
+            label: Text(items[index].label),
+            selectedColor: AppColors.deepGreen,
+            backgroundColor: AppColors.grey100,
+            labelStyle: TextStyle(
+              color: selected ? Colors.white : AppColors.darkText,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+            side: BorderSide(
+              color: selected ? AppColors.deepGreen : AppColors.grey200,
+            ),
+            onSelected: (_) => onSelected(index),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MenuButton extends StatelessWidget {
+  final _AnalyticsMenuItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MenuButton({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: selected
+            ? AppColors.deepGreen.withValues(alpha: 0.10)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(9),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(9),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(
+                color: selected
+                    ? AppColors.deepGreen.withValues(alpha: 0.28)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  item.icon,
+                  color: selected ? AppColors.deepGreen : AppColors.grey600,
+                  size: 19,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: selected ? AppColors.deepGreen : AppColors.grey800,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppColors.deepGreen,
+                    size: 18,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopSummaryPanel extends StatelessWidget {
+  final Map<String, dynamic> summary;
+
+  const _TopSummaryPanel({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _SummaryItem(
+        label: 'Best crop',
+        value: _cropLabel(_str(summary['bestPerformingCrop'], '-')),
+        icon: Icons.emoji_events_rounded,
+        color: AppColors.limeGreen,
+      ),
+      _SummaryItem(
+        label: 'Most profitable',
+        value: _cropLabel(_str(summary['mostProfitableCrop'], '-')),
+        icon: Icons.payments_rounded,
+        color: AppColors.deepGreen,
+      ),
+      _SummaryItem(
+        label: 'Highest risk',
+        value: _cropLabel(_str(summary['highestRiskCrop'], '-')),
+        icon: Icons.warning_rounded,
+        color: AppColors.burntOrange,
+      ),
+      _SummaryItem(
+        label: 'Avg yield',
+        value: '${_num(summary['averageYield']).toStringAsFixed(2)} t/ac',
+        icon: Icons.grass_rounded,
+        color: AppColors.skyBlue,
+      ),
+      _SummaryItem(
+        label: 'Expected profit',
+        value: formatPKR(_num(summary['expectedProfitPerAcre']), compact: true),
+        icon: Icons.trending_up_rounded,
+        color: AppColors.deepGreen,
+      ),
+      _SummaryItem(
+        label: 'Loss chance',
+        value: _pct(_num(summary['probabilityOfLoss'])),
+        icon: Icons.price_change_rounded,
+        color: AppColors.amber,
+      ),
+      _SummaryItem(
+        label: 'Weather risk',
+        value: _titleCase(_str(summary['mainWeatherRisk'], 'normal')),
+        icon: Icons.cloud_rounded,
+        color: AppColors.skyBlue,
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.offWhite,
+        border: Border(bottom: BorderSide(color: AppColors.grey200)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: items
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: _MetricTile(item: item),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.psychology_rounded,
+                size: 18,
+                color: AppColors.deepGreen,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _str(
+                    summary['aiRecommendation'],
+                    'No recommendation available.',
+                  ),
+                  style: AppTextStyles.bodySmall
+                      .copyWith(color: AppColors.grey800),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _SummaryPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = _map(data['summary']);
+    final cropRows = _rows(_map(data['cropPerformance'])['rows']);
+
+    return _PageScaffold(
+      title: 'Summary',
+      subtitle: 'A quick decision view for crop performance and risk.',
+      children: [
+        _KpiWrap(summary: summary),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Crop comparison',
+            subtitle: 'Average yield by crop',
+            child: Column(
+              children: [
+                _CropBarChart(
+                  rows: cropRows,
+                  valueKeyName: 'meanYield',
+                  valueSuffix: ' t/ac',
+                ),
+                const _GraphNote(
+                  text:
+                      'Higher bars mean better average yield in the selected district and year range.',
+                ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Crop yield share',
+            subtitle: 'Share of total average yield',
+            child: Column(
+              children: [
+                _DonutChart(
+                  slices: _slicesFromRows(
+                    cropRows,
+                    valueKey: 'meanYield',
+                    labelKey: 'crop',
+                  ),
+                  centerLabel: 'Yield share',
+                ),
+                const _GraphNote(
+                  text:
+                      'This donut shows which crops contribute most to the combined average yield.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        _Panel(
+          title: 'Crop comparison table',
+          subtitle: 'Yield, profit, risk, and loss probability in one table',
+          child: _CropPerformanceTable(rows: cropRows),
+        ),
+      ],
+    );
+  }
+}
+
+class _TrendPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _TrendPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final trend = _map(data['yieldTrend']);
+    final rows = _rows(trend['yearly']);
+    final stats = _map(trend['descriptiveStats']);
+    final regression = _map(trend['regression']);
+    final multi = _map(trend['multiFactorRegression']);
+    final interval = _map(trend['confidenceInterval']);
+    final crops = _map(data['crops']);
+
+    return _PageScaffold(
+      title: 'Yield Trend Analysis',
+      subtitle: 'Historical yield movement from 2005 to 2023 where selected.',
+      children: [
+        _StatsGrid(stats: stats),
+        _Panel(
+          title: 'Yield trend line',
+          subtitle: 'Yearly yield for the selected crop',
+          child: Column(
+            children: [
+              _LineSeriesChart(
+                rows: rows,
+                yKey: 'yieldTAcre',
+                yLabel: 'Yield t/acre',
+                color: AppColors.deepGreen,
+              ),
+              const _GraphNote(
+                text:
+                    'A rising line means productivity is improving. Dips often match drought, flood, or heat years.',
+              ),
+            ],
+          ),
+        ),
+        _Panel(
+          title: 'Year-over-year growth',
+          subtitle: 'How much yield changed compared with the previous year',
+          child: Column(
+            children: [
+              _GrowthBarChart(rows: rows),
+              const _GraphNote(
+                text:
+                    'Positive bars show growth from last year. Negative bars warn that yield fell.',
+              ),
+            ],
+          ),
+        ),
+        _Panel(
+          title: 'Crop-wise trend comparison',
+          subtitle: 'Trend lines for all crops returned by the API',
+          child: Column(
+            children: [
+              _MultiCropTrendChart(crops: crops),
+              const _GraphNote(
+                text:
+                    'Use this to compare whether one crop is improving faster than another.',
+              ),
+            ],
+          ),
+        ),
+        _TwoColumn(
+          left: _RegressionPanel(regression: regression),
+          right: _RegressionPanel(
+            regression: multi,
+            title: 'Multi-factor model',
+          ),
+        ),
+        _ConfidencePanel(
+          title: 'Expected yield confidence interval',
+          interval: interval,
+          unit: 't/acre',
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfitPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _ProfitPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final costProfit = _map(data['costProfit']);
+    final cropRows = _rows(costProfit['cropRows']);
+    final yearly = _rows(costProfit['yearly']);
+    final interval = _map(costProfit['confidenceInterval']);
+
+    return _PageScaffold(
+      title: 'Cost and Profit Analysis',
+      subtitle: 'Profit is revenue minus estimated farming cost per acre.',
+      children: [
+        _Panel(
+          title: 'Cost vs profit',
+          subtitle: 'Yearly cost and profit for the selected crop',
+          child: Column(
+            children: [
+              _CostProfitChart(rows: yearly),
+              const _GraphNote(
+                text:
+                    'If profit bars fall below zero, the crop did not cover its estimated cost that year.',
+              ),
+            ],
+          ),
+        ),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Profit share',
+            subtitle: 'Which crop contributes the most profit',
+            child: Column(
+              children: [
+                _DonutChart(
+                  slices: _slicesFromRows(
+                    cropRows,
+                    valueKey: 'expectedProfitPerAcre',
+                    labelKey: 'crop',
+                    positiveOnly: true,
+                  ),
+                  centerLabel: 'Profit',
+                ),
+                const _GraphNote(
+                  text:
+                      'Only positive expected profits are counted in this share.',
+                ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Cost breakdown',
+            subtitle: 'Latest available cost components',
+            child: Column(
+              children: [
+                _DonutChart(
+                  slices: _costBreakdownSlices(yearly),
+                  centerLabel: 'Cost',
+                ),
+                const _GraphNote(
+                  text:
+                      'This breaks estimated cost into fertilizer, irrigation, and other field costs.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        _Panel(
+          title: 'Profit comparison table',
+          subtitle: 'Expected profit, ROI, loss probability, and risk',
+          child: _ProfitTable(rows: cropRows),
+        ),
+        _ConfidencePanel(
+          title: 'Expected profit confidence interval',
+          interval: interval,
+          unit: 'PKR per acre',
+          isMoney: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _WeatherPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _WeatherPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final section = _map(data['weatherImpact']);
+    final rows = _rows(section['yearly']);
+    final correlations = _map(section['correlations']);
+
+    return _PageScaffold(
+      title: 'Weather Impact Analysis',
+      subtitle: 'Rainfall and temperature relationships with yield.',
+      children: [
+        _WeatherRiskCards(rows: rows),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Rainfall vs yield',
+            subtitle: 'Each dot is one year',
+            child: Column(
+              children: [
+                _ScatterMetricChart(
+                  rows: rows,
+                  xKey: 'rainfallMm',
+                  yKey: 'yieldTAcre',
+                  xLabel: 'Rainfall mm',
+                  yLabel: 'Yield t/acre',
+                  color: AppColors.skyBlue,
+                ),
+                const _GraphNote(
+                  text:
+                      'A clear pattern means rainfall is strongly linked with yield in this district.',
+                ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Temperature vs yield',
+            subtitle: 'High heat can reduce crop performance',
+            child: Column(
+              children: [
+                _ScatterMetricChart(
+                  rows: rows,
+                  xKey: 'tempMaxC',
+                  yKey: 'yieldTAcre',
+                  xLabel: 'Max temp C',
+                  yLabel: 'Yield t/acre',
+                  color: AppColors.burntOrange,
+                ),
+                const _GraphNote(
+                  text:
+                      'If yield falls as temperature rises, heat stress management should be a priority.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        _TwoColumn(
+          left: _CorrelationPanel(
+            title: 'Rainfall correlation',
+            correlation: _map(correlations['rainfallYield']),
+          ),
+          right: _CorrelationPanel(
+            title: 'Temperature correlation',
+            correlation: _map(correlations['temperatureYield']),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RiskPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _RiskPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final section = _map(data['riskProbability']);
+    final probabilities = _map(section['probabilities']);
+    final thresholds = _map(section['thresholds']);
+    final cropRows = _rows(_map(data['cropPerformance'])['rows']);
+
+    return _PageScaffold(
+      title: 'Risk and Probability Analysis',
+      subtitle: 'Empirical risk probabilities from selected historical years.',
+      children: [
+        _RiskProbabilityCards(probabilities: probabilities),
+        _TwoColumn(
+          left: _Panel(
+            title: 'Risk probability chart',
+            subtitle: 'Low yield, crop failure, weather, price, and loss risks',
+            child: Column(
+              children: [
+                _ProbabilityChart(probabilities: probabilities),
+                const _GraphNote(
+                  text:
+                      'These probabilities are historical frequencies, not guaranteed future outcomes.',
+                ),
+              ],
+            ),
+          ),
+          right: _Panel(
+            title: 'Risk distribution',
+            subtitle: 'Risk levels across available crops',
+            child: Column(
+              children: [
+                _DonutChart(
+                  slices: _riskDistributionSlices(cropRows),
+                  centerLabel: 'Risk',
+                ),
+                const _GraphNote(
+                  text:
+                      'This shows how many crops fall into low, medium, or high risk categories.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        _Panel(
+          title: 'Risk thresholds',
+          subtitle: 'Rules used by the probability model',
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _SmallFact(
+                label: 'Overall level',
+                value: _titleCase(_str(section['riskLevel'], 'unknown')),
+                color: _riskColor(_str(section['riskLevel'], 'medium')),
+              ),
+              _SmallFact(
+                label: 'Risk score',
+                value: '${_num(section['riskScore']).toStringAsFixed(1)}/100',
+                color: AppColors.amber,
+              ),
+              _SmallFact(
+                label: 'Low yield below',
+                value:
+                    '${_num(thresholds['lowYieldTAcre']).toStringAsFixed(2)} t/ac',
+                color: AppColors.burntOrange,
+              ),
+              _SmallFact(
+                label: 'Failure yield below',
+                value:
+                    '${_num(thresholds['failureYieldTAcre']).toStringAsFixed(2)} t/ac',
+                color: AppColors.riskCritical,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TestingPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _TestingPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final tests = _map(data['statisticalTesting']);
+    final selected = _map(data['selectedCrop']);
+    final correlations = _map(selected['correlations']);
+    final yieldCi = _map(_map(data['yieldTrend'])['confidenceInterval']);
+    final profitCi = _map(_map(data['costProfit'])['confidenceInterval']);
+    final regression = _map(_map(data['yieldTrend'])['regression']);
+    final multi = _map(_map(data['yieldTrend'])['multiFactorRegression']);
+
+    return _PageScaffold(
+      title: 'Statistical Testing Panel',
+      subtitle: 'Academic tests explained in simple English.',
+      children: [
+        _Panel(
+          title: 'Hypothesis tests',
+          subtitle: 't-test, ANOVA, and chi-square where data allows',
+          child: Column(
+            children: [
+              _TestResultTile(test: _map(tests['tTestYield'])),
+              _TestResultTile(test: _map(tests['tTestProfit'])),
+              _TestResultTile(test: _map(tests['anovaYield'])),
+              _TestResultTile(test: _map(tests['anovaProfit'])),
+              _TestResultTile(test: _map(tests['chiSquareWeatherRisk'])),
+              _UnavailableTile(test: _map(tests['seasonTest'])),
+            ],
+          ),
+        ),
+        _TwoColumn(
+          left: _ConfidencePanel(
+            title: 'Yield confidence interval',
+            interval: yieldCi,
+            unit: 't/acre',
+          ),
+          right: _ConfidencePanel(
+            title: 'Profit confidence interval',
+            interval: profitCi,
+            unit: 'PKR per acre',
+            isMoney: true,
+          ),
+        ),
+        _TwoColumn(
+          left: _RegressionPanel(regression: regression),
+          right: _RegressionPanel(
+            regression: multi,
+            title: 'Multi-factor regression',
+          ),
+        ),
+        _TwoColumn(
+          left: _CorrelationPanel(
+            title: 'Fertilizer cost vs profit',
+            correlation: _map(correlations['fertilizerProfit']),
+          ),
+          right: _CorrelationPanel(
+            title: 'Market price vs profit',
+            correlation: _map(correlations['marketPriceProfit']),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AiInsightsPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const _AiInsightsPage({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final insights = _map(data['aiInsights']);
+    final quality = _map(data['dataQuality']);
+    final bullets = _stringList(insights['bullets']);
+
+    return _PageScaffold(
+      title: 'AI Insights',
+      subtitle: 'Farmer-friendly recommendations based on analytics.',
+      children: [
+        _Panel(
+          title: 'Plain-language summary',
+          subtitle: 'What the numbers mean for the farmer',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _str(insights['farmerSummary'], 'No summary available.'),
+                style: AppTextStyles.headingSmall,
+              ),
+              const SizedBox(height: 12),
+              ...bullets.map((item) => _InsightBullet(text: item)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.deepGreen.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.deepGreen.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Text(
+                  _str(
+                    insights['recommendation'],
+                    'No recommendation available.',
+                  ),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.deepGreen,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _Panel(
+          title: 'Data notes',
+          subtitle: 'How to read demo or missing-data messages',
+          child: Column(
+            children: quality.entries
+                .map(
+                  (entry) => _DataQualityRow(
+                    label: entry.key,
+                    value: entry.value.toString(),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PageScaffold extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  const _PageScaffold({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTextStyles.headingMedium),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: AppTextStyles.bodySmall.copyWith(color: AppColors.grey600),
+          ),
+          const SizedBox(height: 16),
+          ...children.map(
+            (child) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Panel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  const _Panel({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTextStyles.headingSmall),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.bodySmall
+                          .copyWith(color: AppColors.grey600),
+                    ),
+                  ],
+                ),
+              ),
+              Tooltip(
+                message: subtitle,
+                child: const Icon(
+                  Icons.help_outline_rounded,
+                  size: 18,
+                  color: AppColors.grey400,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    ).animate().fadeIn(duration: 220.ms).slideY(begin: 0.015, end: 0);
+  }
+}
+
+class _FilterDropdown extends StatelessWidget {
+  final String label;
+  final String value;
+  final double width;
+  final IconData icon;
+  final List<DropdownMenuItem<String>> items;
+  final ValueChanged<String> onChanged;
+
+  const _FilterDropdown({
+    required this.label,
+    required this.value,
+    required this.width,
+    required this.icon,
+    required this.items,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      margin: const EdgeInsets.only(right: 10),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 18),
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            isDense: true,
+            items: items,
+            onChanged: (next) {
+              if (next != null) onChanged(next);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RangeFilter extends StatelessWidget {
+  final RangeValues value;
+  final ValueChanged<RangeValues> onChanged;
+
+  const _RangeFilter({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 250,
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.fromLTRB(12, 7, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Year ${value.start.round()}-${value.end.round()}',
+            style: AppTextStyles.label.copyWith(letterSpacing: 0),
+          ),
+          RangeSlider(
+            values: value,
+            min: 2005,
+            max: 2023,
+            divisions: 18,
+            labels: RangeLabels(
+              value.start.round().toString(),
+              value.end.round().toString(),
+            ),
+            onChanged: (next) {
+              if (next.end - next.start >= 2) onChanged(next);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FarmAreaFilter extends StatelessWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _FarmAreaFilter({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 230,
+      padding: const EdgeInsets.fromLTRB(12, 7, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Farming area ${value.toStringAsFixed(1)} acres',
+            style: AppTextStyles.label.copyWith(letterSpacing: 0),
+          ),
+          Slider(
+            value: value.clamp(0.5, 100.0).toDouble(),
+            min: 0.5,
+            max: 100,
+            divisions: 199,
+            label: '${value.toStringAsFixed(1)} acres',
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _KpiWrap extends StatelessWidget {
+  final Map<String, dynamic> summary;
+
+  const _KpiWrap({required this.summary});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _SummaryItem(
+        label: 'Best crop',
+        value: _cropLabel(_str(summary['bestPerformingCrop'], '-')),
+        icon: Icons.emoji_events_rounded,
+        color: AppColors.limeGreen,
+      ),
+      _SummaryItem(
+        label: 'Highest risk',
+        value: _cropLabel(_str(summary['highestRiskCrop'], '-')),
+        icon: Icons.warning_rounded,
+        color: AppColors.burntOrange,
+      ),
+      _SummaryItem(
+        label: 'Average yield',
+        value: '${_num(summary['averageYield']).toStringAsFixed(2)} t/ac',
+        icon: Icons.grass_rounded,
+        color: AppColors.skyBlue,
+      ),
+      _SummaryItem(
+        label: 'Expected profit',
+        value: formatPKR(_num(summary['expectedProfitPerAcre']), compact: true),
+        icon: Icons.payments_rounded,
+        color: AppColors.deepGreen,
+      ),
+    ];
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: items.map((item) => _MetricTile(item: item)).toList(),
+    );
+  }
+}
+
+class _StatsGrid extends StatelessWidget {
+  final Map<String, dynamic> stats;
+
+  const _StatsGrid({required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _SummaryItem(
+        label: 'Mean',
+        value: _fixed(stats['mean']),
+        icon: Icons.functions_rounded,
+        color: AppColors.deepGreen,
+      ),
+      _SummaryItem(
+        label: 'Median',
+        value: _fixed(stats['median']),
+        icon: Icons.align_horizontal_center_rounded,
+        color: AppColors.skyBlue,
+      ),
+      _SummaryItem(
+        label: 'Min',
+        value: _fixed(stats['min']),
+        icon: Icons.south_rounded,
+        color: AppColors.burntOrange,
+      ),
+      _SummaryItem(
+        label: 'Max',
+        value: _fixed(stats['max']),
+        icon: Icons.north_rounded,
+        color: AppColors.limeGreen,
+      ),
+      _SummaryItem(
+        label: 'Std dev',
+        value: _fixed(stats['stdDev']),
+        icon: Icons.show_chart_rounded,
+        color: AppColors.amber,
+      ),
+      _SummaryItem(
+        label: 'Variance',
+        value: _fixed(stats['variance']),
+        icon: Icons.scatter_plot_rounded,
+        color: AppColors.skyBlue,
+      ),
+      _SummaryItem(
+        label: 'Range',
+        value: _fixed(stats['range']),
+        icon: Icons.swap_vert_rounded,
+        color: AppColors.grey600,
+      ),
+      _SummaryItem(
+        label: 'Change',
+        value: '${_num(stats['percentChange']).toStringAsFixed(1)}%',
+        icon: Icons.percent_rounded,
+        color: AppColors.deepGreen,
+      ),
+    ];
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: items.map((item) => _MetricTile(item: item)).toList(),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final _SummaryItem item;
+
+  const _MetricTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: item.label,
+      child: Container(
+        width: 160,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: item.color.withValues(alpha: 0.22)),
+          boxShadow: AppShadows.card,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: item.color.withValues(alpha: 0.11),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(item.icon, size: 18, color: item.color),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
+                  ),
+                  Text(
+                    item.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryItem {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _SummaryItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _CropBarChart extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+  final String valueKeyName;
+  final String valueSuffix;
+
+  const _CropBarChart({
+    required this.rows,
+    required this.valueKeyName,
+    required this.valueSuffix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) return const _EmptyChart();
+    final maxY = rows.map((r) => _num(r[valueKeyName])).reduce(math.max);
+
+    return SizedBox(
+      height: 270,
+      child: BarChart(
+        BarChartData(
+          maxY: maxY <= 0 ? 1 : maxY * 1.22,
+          alignment: BarChartAlignment.spaceAround,
+          barGroups: [
+            for (int i = 0; i < rows.length; i++)
+              BarChartGroupData(
+                x: i,
+                barRods: [
+                  BarChartRodData(
+                    toY: _num(rows[i][valueKeyName]),
+                    width: 28,
+                    color:
+                        AppColors.cropColors[i % AppColors.cropColors.length],
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(6)),
+                  ),
+                ],
+              ),
+          ],
+          gridData: const FlGridData(show: true, drawVerticalLine: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 42,
+                getTitlesWidget: (value, _) => Text(
+                  value.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.grey600,
+                  ),
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 36,
+                getTitlesWidget: (value, _) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= rows.length) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      _cropShort(_str(rows[i]['crop'])),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.grey600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipColor: (_) => const Color(0xFF1B2B1E),
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final crop = _cropLabel(_str(rows[group.x.toInt()]['crop']));
+                return BarTooltipItem(
+                  '$crop\n${rod.toY.toStringAsFixed(2)}$valueSuffix',
+                  const TextStyle(color: Colors.white, fontSize: 11),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LineSeriesChart extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+  final String yKey;
+  final String yLabel;
+  final Color color;
+
+  const _LineSeriesChart({
+    required this.rows,
+    required this.yKey,
+    required this.yLabel,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = rows
+        .where((row) => row.containsKey('year'))
+        .map((row) => FlSpot(_num(row['year']), _num(row[yKey])))
+        .where((spot) => spot.x > 0)
+        .toList();
+
+    if (spots.isEmpty) return const _EmptyChart();
+
+    final minX = spots.map((s) => s.x).reduce(math.min);
+    final maxX = spots.map((s) => s.x).reduce(math.max);
+    final ys = spots.map((s) => s.y).toList();
+    final minYRaw = ys.reduce(math.min);
+    final maxYRaw = ys.reduce(math.max);
+    final pad = math.max(
+      (maxYRaw - minYRaw).abs() * 0.15,
+      0.12,
+    );
+
+    return SizedBox(
+      height: 285,
+      child: LineChart(
+        LineChartData(
+          minX: minX,
+          maxX: maxX,
+          minY: minYRaw - pad,
+          maxY: maxYRaw + pad,
+          gridData: const FlGridData(show: true, drawVerticalLine: false),
+          borderData: FlBorderData(show: false),
           lineBarsData: [
             LineChartBarData(
               spots: spots,
-              color: AppColors.limeGreen,
-              barWidth: 2.2,
+              color: color,
+              barWidth: 2.8,
               isCurved: true,
-              curveSmoothness: 0.25,
-              dotData: const FlDotData(show: false),
+              curveSmoothness: 0.18,
+              dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [
-                    AppColors.limeGreen.withValues(alpha: 0.35),
-                    AppColors.limeGreen.withValues(alpha: 0.0),
-                  ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
+                  colors: [
+                    color.withValues(alpha: 0.22),
+                    color.withValues(alpha: 0.02),
+                  ],
                 ),
               ),
             ),
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => AppColors.deepGreen,
-              getTooltipItems: (spots) => spots
-                  .map((s) => LineTooltipItem(
-                        'NDVI: ${s.y.toStringAsFixed(3)}',
-                        const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600),
-                      ))
-                  .toList(),
-            ),
-          ),
-          gridData: const FlGridData(
-              show: true, drawVerticalLine: false, horizontalInterval: 0.1),
-          borderData: FlBorderData(show: false),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 36,
-                    getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.grey600)))),
-            bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 24,
-                    interval: 4,
-                    getTitlesWidget: (v, _) => Text(v.toStringAsFixed(0),
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.grey600)))),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-        )),
-      ),
-    );
-  }
-
-  Widget _yieldBarChart(List<YieldData> data, List<List<String>> csv) {
-    final barGroups = data
-        .asMap()
-        .entries
-        .map((e) => BarChartGroupData(
-              x: e.key,
-              barRods: [
-                BarChartRodData(
-                  toY: e.value.yieldTAcre,
-                  width: math.max(4, 300 / data.length - 3),
-                  gradient: const LinearGradient(
-                    colors: [AppColors.limeGreen, AppColors.deepGreen],
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                  ),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(4)),
-                ),
-              ],
-            ))
-        .toList();
-
-    return _ChartCard(
-      title: 'Annual Yield',
-      subtitle: 'tonnes per acre',
-      csvData: csv,
-      child: SizedBox(
-        height: 200,
-        child: BarChart(BarChartData(
-          barGroups: barGroups,
-          gridData: const FlGridData(
-              show: true, drawVerticalLine: false, horizontalInterval: 0.5),
-          borderData: FlBorderData(show: false),
-          barTouchData: BarTouchData(
-            touchTooltipData: BarTouchTooltipData(
-              getTooltipColor: (_) => AppColors.deepGreen,
-              getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                '${data[group.x].year}\n${rod.toY.toStringAsFixed(2)} t/a',
-                const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
-              ),
+              getTooltipColor: (_) => const Color(0xFF1B2B1E),
+              getTooltipItems: (items) => items.map((item) {
+                final value = item.y.toStringAsFixed(2);
+                return LineTooltipItem(
+                  'Year ${item.x.toInt()}\n$yLabel: $value',
+                  const TextStyle(color: Colors.white, fontSize: 11),
+                );
+              }).toList(),
             ),
           ),
           titlesData: FlTitlesData(
             leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 36,
-                    getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                        style: const TextStyle(
-                            fontSize: 9, color: AppColors.grey600)))),
-            bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 24,
-                    getTitlesWidget: (v, meta) {
-                      final idx = v.round();
-                      if (idx < 0 || idx >= data.length) return const SizedBox();
-                      final yr = data[idx].year;
-                      if (yr % 4 != 1) return const SizedBox();
-                      return Text('$yr',
-                          style: const TextStyle(
-                              fontSize: 9, color: AppColors.grey600));
-                    })),
-            rightTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles:
-                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-        )),
-      ),
-    );
-  }
-
-  Widget _insightsPanel(
-      YieldData best, YieldData worst, RegressionResult reg, double mn) {
-    final trendUp = reg.slope > 0;
-    final trendColor = trendUp ? AppColors.limeGreen : AppColors.burntOrange;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Data Insights', style: AppTextStyles.headingSmall),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _insightTile(Icons.star_rounded, AppColors.amber,
-              'Best Year', '${best.year}  •  ${best.yieldTAcre.toStringAsFixed(2)} t/a')),
-          const SizedBox(width: 12),
-          Expanded(child: _insightTile(Icons.warning_amber_rounded, AppColors.burntOrange,
-              'Worst Year', '${worst.year}  •  ${worst.yieldTAcre.toStringAsFixed(2)} t/a')),
-          const SizedBox(width: 12),
-          Expanded(child: _insightTile(
-            trendUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-            trendColor,
-            'Trend',
-            '${trendUp ? '+' : ''}${(reg.slope * 10).toStringAsFixed(2)} t/a per decade',
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: _insightTile(Icons.analytics_rounded, AppColors.skyBlue,
-              'R² (Year→Yield)', reg.rSquared.toStringAsFixed(3))),
-        ]),
-      ]),
-    );
-  }
-
-  Widget _insightTile(IconData icon, Color color, String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(height: 6),
-        Text(label, style: AppTextStyles.label),
-        const SizedBox(height: 2),
-        Text(value,
-            style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.darkText, fontWeight: FontWeight.w600)),
-      ]),
-    );
-  }
-}
-
-// ─── Tab 2: Probability ───────────────────────────────────────────────────────
-
-class _ProbabilityTab extends StatelessWidget {
-  final List<YieldData> data;
-  final bool isWide;
-  final double droughtNdvi, droughtRain, excThreshold;
-  final ValueChanged<double> onDroughtNdvi, onDroughtRain, onExcThreshold;
-
-  const _ProbabilityTab({
-    required this.data,
-    required this.isWide,
-    required this.droughtNdvi,
-    required this.droughtRain,
-    required this.excThreshold,
-    required this.onDroughtNdvi,
-    required this.onDroughtRain,
-    required this.onExcThreshold,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final yields = data.map((d) => d.yieldTAcre).toList();
-    final mu = StatsUtils.mean(yields);
-    final sigma = StatsUtils.standardDeviation(yields);
-
-    final pAbove2 = StatsUtils.yieldExceedanceProbability(2.0, yields);
-    final pBelow12 = 1 - StatsUtils.yieldExceedanceProbability(1.2, yields);
-    final pRange = StatsUtils.yieldExceedanceProbability(1.5, yields) -
-        StatsUtils.yieldExceedanceProbability(3.0, yields);
-
-    final droughtProb =
-        StatsUtils.droughtProbability(droughtNdvi, droughtRain, yields) * 100;
-    final droughtColor = droughtProb < 30
-        ? AppColors.limeGreen
-        : droughtProb < 60
-            ? AppColors.amber
-            : AppColors.burntOrange;
-
-    final ci90 = StatsUtils.confidenceInterval(yields, 0.90);
-    final ci95 = StatsUtils.confidenceInterval(yields, 0.95);
-    final ci99 = StatsUtils.confidenceInterval(yields, 0.99);
-
-    // Exceedance curve
-    final sortedY = List<double>.from(yields)..sort();
-    final excSpots = sortedY
-        .asMap()
-        .entries
-        .map((e) => FlSpot(e.value,
-            1.0 - (e.key + 1) / sortedY.length))
-        .toList();
-
-    final excCsv = [
-      ['Yield (t/a)', 'P(exceed)'],
-      ...excSpots.map((s) => [s.x.toStringAsFixed(2), s.y.toStringAsFixed(3)]),
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(children: [
-        // Normal distribution
-        _ChartCard(
-          title: 'Yield Probability Distribution',
-          subtitle: 'Fitted normal — green zones: ±1σ (dark), ±2σ (light)',
-          child: Column(children: [
-            SizedBox(
-              height: 180,
-              child: CustomPaint(
-                size: const Size(double.infinity, 180),
-                painter: _NormDistPainter(mu: mu, sigma: sigma),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              _probBadge('P(yield > 2.0)', pAbove2, AppColors.deepGreen),
-              _probBadge('P(yield < 1.2)', pBelow12, AppColors.burntOrange),
-              _probBadge('P(1.5 < y < 3.0)', pRange.clamp(0.0, 1.0), AppColors.skyBlue),
-            ]),
-          ]),
-        ),
-        const SizedBox(height: 14),
-
-        if (isWide)
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _exceedanceChart(excSpots, excCsv)),
-            const SizedBox(width: 14),
-            Expanded(child: _droughtCalc(droughtProb, droughtColor, context)),
-          ])
-        else ...[
-          _exceedanceChart(excSpots, excCsv),
-          const SizedBox(height: 14),
-          _droughtCalc(droughtProb, droughtColor, context),
-        ],
-        const SizedBox(height: 14),
-        _confidenceIntervalCard(ci90, ci95, ci99, mu),
-      ]),
-    );
-  }
-
-  Widget _probBadge(String label, double p, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Column(children: [
-        Text('${(p * 100).toStringAsFixed(1)}%',
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w800, color: color)),
-        Text(label,
-            style: const TextStyle(fontSize: 9.5, color: AppColors.grey600)),
-      ]),
-    );
-  }
-
-  Widget _exceedanceChart(List<FlSpot> spots, List<List<String>> csv) {
-    final minX = spots.isEmpty ? 0.0 : spots.first.x;
-    final maxX = spots.isEmpty ? 5.0 : spots.last.x;
-    return _ChartCard(
-      title: 'Exceedance Probability',
-      subtitle: 'P(yield > x) — drag threshold below',
-      csvData: csv,
-      child: Column(children: [
-        SizedBox(
-          height: 160,
-          child: LineChart(LineChartData(
-            minX: minX,
-            maxX: maxX,
-            minY: 0,
-            maxY: 1,
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots,
-                color: AppColors.skyBlue,
-                barWidth: 2,
-                dotData: const FlDotData(show: false),
-                isCurved: false,
-              ),
-              // Threshold vertical indicator
-              LineChartBarData(
-                spots: [FlSpot(excThreshold, 0), FlSpot(excThreshold, 1)],
-                color: AppColors.burntOrange.withValues(alpha: 0.7),
-                barWidth: 1.5,
-                dotData: const FlDotData(show: false),
-                dashArray: [4, 4],
-              ),
-            ],
-            gridData: const FlGridData(show: true, drawVerticalLine: false),
-            borderData: FlBorderData(show: false),
-            lineTouchData: LineTouchData(
-              touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => AppColors.deepGreen,
-                getTooltipItems: (spots) => spots
-                    .map((s) => LineTooltipItem(
-                          '${(s.y * 100).toStringAsFixed(1)}%',
-                          const TextStyle(color: Colors.white, fontSize: 11),
-                        ))
-                    .toList(),
-              ),
-            ),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 36,
-                      getTitlesWidget: (v, _) => Text(
-                          '${(v * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                              fontSize: 9, color: AppColors.grey600)))),
-              bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 24,
-                      getTitlesWidget: (v, _) => Text(
-                          v.toStringAsFixed(1),
-                          style: const TextStyle(
-                              fontSize: 9, color: AppColors.grey600)))),
-              rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
-              topTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-          )),
-        ),
-        Row(children: [
-          const Icon(Icons.linear_scale_rounded, size: 14, color: AppColors.grey400),
-          const SizedBox(width: 6),
-          Text('Threshold: ${excThreshold.toStringAsFixed(1)} t/a',
-              style: AppTextStyles.label),
-          const Spacer(),
-          Text(
-            'P(exceed) = ${(StatsUtils.yieldExceedanceProbability(excThreshold, spots.map((s) => s.x).toList()) * 100).toStringAsFixed(1)}%',
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.skyBlue, fontWeight: FontWeight.w700),
-          ),
-        ]),
-        Slider(
-          value: excThreshold,
-          min: 0.5,
-          max: 4.5,
-          divisions: 40,
-          activeColor: AppColors.burntOrange,
-          inactiveColor: AppColors.grey200,
-          onChanged: onExcThreshold,
-        ),
-      ]),
-    );
-  }
-
-  Widget _droughtCalc(double droughtProb, Color droughtColor, BuildContext ctx) {
-    return _ChartCard(
-      title: 'Drought Risk Calculator',
-      subtitle: 'Bayesian P(drought | NDVI, rainfall)',
-      child: Column(children: [
-        const SizedBox(height: 8),
-        TweenAnimationBuilder<double>(
-          key: ValueKey(droughtProb.toStringAsFixed(1)),
-          tween: Tween(begin: 0.0, end: droughtProb / 100),
-          duration: const Duration(milliseconds: 700),
-          curve: Curves.easeOutCubic,
-          builder: (_, v, __) => SizedBox(
-            width: 90, height: 90,
-            child: Stack(alignment: Alignment.center, children: [
-              CircularProgressIndicator(
-                value: v,
-                strokeWidth: 9,
-                backgroundColor: AppColors.grey200,
-                valueColor: AlwaysStoppedAnimation<Color>(droughtColor),
-                strokeCap: StrokeCap.round,
-              ),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Text('${droughtProb.toStringAsFixed(0)}%',
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: droughtColor)),
-                Text('drought',
-                    style: const TextStyle(
-                        fontSize: 9, color: AppColors.grey600)),
-              ]),
-            ]),
-          ),
-        ),
-        const SizedBox(height: 14),
-        _sliderRow('NDVI', droughtNdvi, 0.0, 1.0, 20, onDroughtNdvi,
-            droughtNdvi.toStringAsFixed(2), AppColors.limeGreen),
-        _sliderRow('Rainfall', droughtRain, 0, 500, 50, onDroughtRain,
-            '${droughtRain.toStringAsFixed(0)} mm', AppColors.skyBlue),
-      ]),
-    );
-  }
-
-  Widget _sliderRow(String label, double value, double min, double max,
-      int div, ValueChanged<double> onChanged, String display, Color color) {
-    return Row(children: [
-      SizedBox(
-          width: 64,
-          child: Text(label,
-              style: AppTextStyles.label.copyWith(color: AppColors.grey600))),
-      Expanded(
-        child: SliderTheme(
-          data: SliderThemeData(
-            activeTrackColor: color,
-            thumbColor: color,
-            inactiveTrackColor: AppColors.grey200,
-            trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-          ),
-          child: Slider(
-              value: value, min: min, max: max, divisions: div, onChanged: onChanged),
-        ),
-      ),
-      SizedBox(
-          width: 58,
-          child: Text(display,
-              style: AppTextStyles.bodySmall.copyWith(
-                  color: color, fontWeight: FontWeight.w700),
-              textAlign: TextAlign.right)),
-    ]);
-  }
-
-  Widget _confidenceIntervalCard(ConfidenceInterval ci90, ConfidenceInterval ci95,
-      ConfidenceInterval ci99, double mu) {
-    final overallRange = ci99.upper - ci99.lower;
-    return _ChartCard(
-      title: 'Confidence Intervals',
-      subtitle: 'Mean yield estimates',
-      child: Column(children: [
-        const SizedBox(height: 8),
-        _ciRow('90% CI', ci90, overallRange, AppColors.limeGreen),
-        const SizedBox(height: 10),
-        _ciRow('95% CI', ci95, overallRange, AppColors.amber),
-        const SizedBox(height: 10),
-        _ciRow('99% CI', ci99, overallRange, AppColors.burntOrange),
-        const SizedBox(height: 12),
-        Text(
-          '95% CI: we are 95% confident the true mean lies in [${ci95.lower.toStringAsFixed(2)}, ${ci95.upper.toStringAsFixed(2)}] t/a',
-          style: AppTextStyles.bodySmall.copyWith(color: AppColors.grey600),
-        ),
-      ]),
-    );
-  }
-
-  Widget _ciRow(String label, ConfidenceInterval ci, double range, Color color) {
-    final barMax = range == 0 ? 1.0 : range;
-    final barWidth = (ci.upper - ci.lower) / barMax;
-    final barOffset = range == 0 ? 0.0 : (ci.lower - (ci.mean - range / 2)) / barMax;
-
-    return Row(children: [
-      SizedBox(
-          width: 52,
-          child: Text(label, style: AppTextStyles.label.copyWith(color: AppColors.grey800))),
-      Expanded(
-        child: Container(
-          height: 18,
-          decoration: BoxDecoration(
-              color: AppColors.grey200, borderRadius: BorderRadius.circular(4)),
-          child: LayoutBuilder(builder: (_, constraints) {
-            return Stack(children: [
-              Positioned(
-                left: (barOffset.clamp(0.0, 1.0)) * constraints.maxWidth,
-                child: Container(
-                  width: (barWidth.clamp(0.0, 1.0)) * constraints.maxWidth,
-                  height: 18,
-                  decoration: BoxDecoration(
-                      color: color, borderRadius: BorderRadius.circular(4)),
-                ),
-              ),
-            ]);
-          }),
-        ),
-      ),
-      const SizedBox(width: 8),
-      Text(
-        '[${ci.lower.toStringAsFixed(2)}, ${ci.upper.toStringAsFixed(2)}]',
-        style: AppTextStyles.bodySmall
-            .copyWith(color: color, fontWeight: FontWeight.w700, fontSize: 10.5),
-      ),
-    ]);
-  }
-}
-
-// ─── Tab 3: Hypothesis Testing ────────────────────────────────────────────────
-
-class _HypothesisTab extends StatelessWidget {
-  final List<YieldData> data;
-  final List<YieldData>? data2;
-  final String district1, district2;
-
-  const _HypothesisTab({
-    required this.data,
-    this.data2,
-    required this.district1,
-    this.district2 = '',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final yields = data.map((d) => d.yieldTAcre).toList();
-    final tt = StatsUtils.tTest(yields, 2.1);
-
-    // Chi-square: high yield vs high rainfall
-    final medY = StatsUtils.median(yields);
-    final rains = data.map((d) => d.rainfallMm).toList();
-    final medR = StatsUtils.median(rains);
-    int hh = 0, hl = 0, lh = 0, ll = 0;
-    for (final d in data) {
-      final hy = d.yieldTAcre >= medY, hr = d.rainfallMm >= medR;
-      if (hy && hr) hh++;
-      else if (hy && !hr) hl++;
-      else if (!hy && hr) lh++;
-      else ll++;
-    }
-    final chi2 = StatsUtils.chiSquare2x2(hh, hl, lh, ll);
-    final chiP = StatsUtils.chiSquarePValueDf1(chi2);
-
-    // Mann-Whitney
-    double? u, uP;
-    if (data2 != null && data2!.isNotEmpty) {
-      final y2 = data2!.map((d) => d.yieldTAcre).toList();
-      u = StatsUtils.mannWhitneyU(yields, y2);
-      final n1 = yields.length, n2 = y2.length;
-      final mu = n1 * n2 / 2;
-      final sigma = math.sqrt(n1 * n2 * (n1 + n2 + 1) / 12);
-      final z = sigma == 0 ? 0.0 : (u - mu) / sigma;
-      uP = (2 * (1 - StatsUtils.normalCDF(z.abs(), 0, 1))).clamp(0.0, 1.0);
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(children: [
-        // T-test card
-        _testCard(
-          title: 'One-Sample T-Test',
-          subtitle: '$district1  vs  Pakistan avg (2.1 t/a)',
-          icon: Icons.science_rounded,
-          color: AppColors.skyBlue,
-          stats: [
-            _stat('t-statistic', tt.tStat.toStringAsFixed(3)),
-            _stat('p-value', tt.pValue < 0.001 ? '<0.001' : tt.pValue.toStringAsFixed(3)),
-            _stat('df', tt.df.toStringAsFixed(0)),
-            _stat("Cohen's d", tt.cohensD.toStringAsFixed(3)),
-          ],
-          interpretation: _tTestInterp(tt),
-          significant: tt.pValue < 0.05,
-        ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0),
-        const SizedBox(height: 14),
-
-        // Chi-square card
-        _testCard(
-          title: 'Chi-Square Test',
-          subtitle: 'High yield × High rainfall correlation',
-          icon: Icons.table_chart_rounded,
-          color: AppColors.amber,
-          stats: [
-            _stat('χ² statistic', chi2.toStringAsFixed(3)),
-            _stat('p-value', chiP < 0.001 ? '<0.001' : chiP.toStringAsFixed(3)),
-            _stat('df', '1'),
-            _stat('', ''),
-          ],
-          interpretation: chiP < 0.05
-              ? 'Significant association between high yield and high rainfall (p < 0.05).'
-              : 'No significant association detected (p ≥ 0.05).',
-          significant: chiP < 0.05,
-          extra: _contingencyTable(hh, hl, lh, ll, medY, medR),
-        ).animate(delay: 80.ms).fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0),
-        const SizedBox(height: 14),
-
-        // Mann-Whitney card
-        _testCard(
-          title: 'Mann-Whitney U Test',
-          subtitle: data2 != null
-              ? '$district1  vs  $district2'
-              : 'Select a second district in the Comparison tab',
-          icon: Icons.compare_arrows_rounded,
-          color: AppColors.limeGreen,
-          stats: u != null
-              ? [
-                  _stat('U statistic', u.toStringAsFixed(0)),
-                  _stat('p-value',
-                      uP! < 0.001 ? '<0.001' : uP.toStringAsFixed(3)),
-                  _stat('n₁', data.length.toString()),
-                  _stat('n₂', data2!.length.toString()),
-                ]
-              : [_stat('Status', 'Awaiting district 2 selection'), _stat('', ''), _stat('', ''), _stat('', '')],
-          interpretation: u != null
-              ? (uP! < 0.05
-                  ? 'Significant difference in yield distributions (p < 0.05).'
-                  : 'No significant difference in yield distributions (p ≥ 0.05).')
-              : 'Select a second district in the Comparison tab to enable this test.',
-          significant: uP != null && uP! < 0.05,
-        ).animate(delay: 160.ms).fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0),
-      ]),
-    );
-  }
-
-  Map<String, String> _stat(String k, String v) => {'k': k, 'v': v};
-
-  Widget _testCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    required List<Map<String, String>> stats,
-    required String interpretation,
-    required bool significant,
-    Widget? extra,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.07),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(13)),
-          ),
-          child: Row(children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: AppTextStyles.headingSmall),
-                    Text(subtitle,
-                        style: AppTextStyles.bodySmall
-                            .copyWith(color: AppColors.grey600)),
-                  ]),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: significant ? AppColors.limeGreen : AppColors.grey400,
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Text(significant ? 'Significant' : 'Not Significant',
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 54,
+                getTitlesWidget: (value, _) => Text(
+                  value.toStringAsFixed(1),
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700)),
-            ),
-          ]),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              children: stats
-                  .where((s) => s['k']!.isNotEmpty)
-                  .map((s) => Expanded(
-                        child: Column(children: [
-                          Text(s['v']!,
-                              style: AppTextStyles.headingSmall
-                                  .copyWith(color: color, fontSize: 15)),
-                          Text(s['k']!, style: AppTextStyles.label),
-                        ]),
-                      ))
-                  .toList(),
-            ),
-            if (extra != null) ...[const SizedBox(height: 12), extra],
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.offWhite,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 14, color: AppColors.grey600),
-                const SizedBox(width: 6),
-                Expanded(
-                    child: Text(interpretation,
-                        style: AppTextStyles.bodySmall
-                            .copyWith(color: AppColors.grey800))),
-              ]),
-            ),
-          ]),
-        ),
-      ]),
-    );
-  }
-
-  Widget _contingencyTable(int hh, int hl, int lh, int ll, double medY, double medR) {
-    return Table(
-      border: TableBorder.all(color: AppColors.grey200, borderRadius: BorderRadius.circular(6)),
-      columnWidths: const {0: FlexColumnWidth(1.8), 1: FlexColumnWidth(1), 2: FlexColumnWidth(1)},
-      children: [
-        _tableRow(['', 'Rain ≥ ${medR.toStringAsFixed(0)}', 'Rain < ${medR.toStringAsFixed(0)}'],
-            isHeader: true),
-        _tableRow(['Yield ≥ ${medY.toStringAsFixed(2)}', '$hh', '$hl']),
-        _tableRow(['Yield < ${medY.toStringAsFixed(2)}', '$lh', '$ll']),
-      ],
-    );
-  }
-
-  TableRow _tableRow(List<String> cells, {bool isHeader = false}) {
-    return TableRow(
-      decoration: isHeader
-          ? BoxDecoration(color: AppColors.grey200.withValues(alpha: 0.7))
-          : null,
-      children: cells
-          .map((c) => Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Text(c,
-                    style: isHeader
-                        ? AppTextStyles.label
-                        : AppTextStyles.bodySmall
-                            .copyWith(color: AppColors.darkText),
-                    textAlign: TextAlign.center),
-              ))
-          .toList(),
-    );
-  }
-
-  String _tTestInterp(TTestResult tt) {
-    final dir = tt.tStat > 0 ? 'above' : 'below';
-    final sig = tt.pValue < 0.05;
-    final eff = tt.cohensD.abs() < 0.2
-        ? 'negligible'
-        : tt.cohensD.abs() < 0.5
-            ? 'small'
-            : tt.cohensD.abs() < 0.8
-                ? 'medium'
-                : 'large';
-    if (sig) {
-      return '$district1 yield is significantly $dir Pakistan average (p=${tt.pValue.toStringAsFixed(3)}, ${eff} effect size).';
-    }
-    return 'No significant difference from Pakistan average detected (p=${tt.pValue.toStringAsFixed(3)}).';
-  }
-}
-
-// ─── Tab 4: Comparison ────────────────────────────────────────────────────────
-
-class _ComparisonTab extends StatelessWidget {
-  final List<YieldData> data1;
-  final List<YieldData>? data2;
-  final String district1, district2, crop;
-  final bool isWide;
-  final ValueChanged<String> onDistrict2Change;
-
-  const _ComparisonTab({
-    required this.data1,
-    this.data2,
-    required this.district1,
-    required this.district2,
-    required this.crop,
-    required this.isWide,
-    required this.onDistrict2Change,
-  });
-
-  String _label(String id) =>
-      AppDistricts.all.firstWhere((d) => d['id'] == id,
-          orElse: () => {'label': id})['label']!;
-
-  @override
-  Widget build(BuildContext context) {
-    final allDistricts = AppDistricts.all;
-    final hasD2 = data2 != null && data2!.isNotEmpty;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // District 2 selector
-        Row(children: [
-          Text('Compare with:', style: AppTextStyles.headingSmall),
-          const SizedBox(width: 12),
-          Container(
-            height: 36,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              color: AppColors.offWhite,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.grey200),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.location_on_rounded,
-                  size: 14, color: AppColors.skyBlue),
-              const SizedBox(width: 6),
-              DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: district2.isEmpty ? null : district2,
-                  hint: const Text('Select district',
-                      style: TextStyle(fontSize: 12, color: AppColors.grey600)),
-                  items: allDistricts
-                      .map((d) => DropdownMenuItem(
-                            value: d['id'],
-                            child: Text(d['label']!,
-                                style: const TextStyle(fontSize: 12)),
-                          ))
-                      .toList(),
-                  onChanged: (v) => v != null ? onDistrict2Change(v) : null,
-                  style: AppTextStyles.bodySmall
-                      .copyWith(color: AppColors.darkText),
-                  isDense: true,
-                ),
-              ),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 16),
-
-        if (!hasD2)
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.grey200.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-                child: Text('Select a second district to compare',
-                    style: TextStyle(color: AppColors.grey600))),
-          )
-        else
-          _buildComparison(context, data1, data2!),
-      ]),
-    );
-  }
-
-  Widget _buildComparison(
-      BuildContext ctx, List<YieldData> d1, List<YieldData> d2) {
-    final y1 = d1.map((d) => d.yieldTAcre).toList();
-    final y2 = d2.map((d) => d.yieldTAcre).toList();
-    final mn1 = StatsUtils.mean(y1), mn2 = StatsUtils.mean(y2);
-    final winner = mn1 >= mn2 ? district1 : _label(district2);
-    final winnerColor = mn1 >= mn2 ? AppColors.deepGreen : AppColors.skyBlue;
-
-    // Align years
-    final years1 = {for (var d in d1) d.year: d};
-    final years2 = {for (var d in d2) d.year: d};
-    final commonYears = years1.keys.toSet().intersection(years2.keys.toSet()).toList()..sort();
-    final spots1 = commonYears
-        .map((y) => FlSpot(y.toDouble(), years1[y]!.yieldTAcre))
-        .toList();
-    final spots2 = commonYears
-        .map((y) => FlSpot(y.toDouble(), years2[y]!.yieldTAcre))
-        .toList();
-
-    final corr = StatsUtils.pearsonCorrelation(
-      commonYears.map((y) => years1[y]!.yieldTAcre).toList(),
-      commonYears.map((y) => years2[y]!.yieldTAcre).toList(),
-    );
-
-    final bp1 = StatsUtils.boxPlot(y1), bp2 = StatsUtils.boxPlot(y2);
-    final allYields = [...y1, ...y2];
-    final minY = allYields.reduce(math.min) - 0.2;
-    final maxY = allYields.reduce(math.max) + 0.2;
-
-    final csvRows = [
-      ['Year', district1, _label(district2)],
-      ...commonYears.map((y) => [
-            y.toString(),
-            years1[y]!.yieldTAcre.toStringAsFixed(2),
-            years2[y]!.yieldTAcre.toStringAsFixed(2),
-          ]),
-    ];
-
-    return Column(children: [
-      // Winner badge
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-              colors: [winnerColor.withValues(alpha: 0.12), winnerColor.withValues(alpha: 0.04)]),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: winnerColor.withValues(alpha: 0.3)),
-        ),
-        child: Row(children: [
-          Icon(Icons.emoji_events_rounded, color: winnerColor, size: 24),
-          const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Better performing district',
-                style: AppTextStyles.label.copyWith(color: winnerColor)),
-            Text(winner,
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: winnerColor)),
-          ]),
-          const Spacer(),
-          Text(
-            'r = ${corr.toStringAsFixed(3)}',
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.grey600),
-          ),
-        ]),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.1, end: 0),
-      const SizedBox(height: 14),
-
-      // Yield trend comparison
-      _ChartCard(
-        title: 'Yield Trend Comparison',
-        subtitle: '${district1} vs ${_label(district2)}',
-        csvData: csvRows,
-        child: SizedBox(
-          height: 200,
-          child: LineChart(LineChartData(
-            lineBarsData: [
-              LineChartBarData(
-                spots: spots1,
-                color: AppColors.deepGreen,
-                barWidth: 2.2,
-                isCurved: true,
-                curveSmoothness: 0.25,
-                dotData: const FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  gradient: LinearGradient(
-                    colors: [AppColors.deepGreen.withValues(alpha: 0.15), Colors.transparent],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+                    fontSize: 9,
+                    color: AppColors.grey600,
                   ),
                 ),
               ),
-              LineChartBarData(
-                spots: spots2,
-                color: AppColors.skyBlue,
-                barWidth: 2.2,
-                isCurved: true,
-                curveSmoothness: 0.25,
-                dotData: const FlDotData(show: false),
-                dashArray: [6, 3],
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: 3,
+                getTitlesWidget: (value, _) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: AppColors.grey600,
+                    ),
+                  ),
+                ),
               ),
-            ],
-            gridData: const FlGridData(show: true, drawVerticalLine: false),
-            borderData: FlBorderData(show: false),
-            lineTouchData: LineTouchData(
-              touchTooltipData: LineTouchTooltipData(
-                getTooltipColor: (_) => const Color(0xFF1B2B1E),
-                getTooltipItems: (spots) {
-                  return spots.map((s) {
-                    final label = s.barIndex == 0 ? district1 : _label(district2);
-                    return LineTooltipItem(
-                      '$label\n${s.y.toStringAsFixed(2)} t/a',
-                      TextStyle(
-                          color: s.barIndex == 0 ? AppColors.limeGreen : AppColors.skyBlue,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600),
-                    );
-                  }).toList();
+            ),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GrowthBarChart extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _GrowthBarChart({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final validRows = rows.where((r) => r['yoyGrowthPct'] != null).toList();
+    if (validRows.isEmpty) return const _EmptyChart();
+    final values = validRows.map((r) => _num(r['yoyGrowthPct'])).toList();
+    final minY = math.min(0, values.reduce(math.min)) - 6;
+    final maxY = math.max(0, values.reduce(math.max)) + 6;
+
+    return SizedBox(
+      height: 250,
+      child: BarChart(
+        BarChartData(
+          minY: minY.toDouble(),
+          maxY: maxY.toDouble(),
+          barGroups: [
+            for (int i = 0; i < validRows.length; i++)
+              BarChartGroupData(
+                x: i,
+                barRods: [
+                  BarChartRodData(
+                    toY: _num(validRows[i]['yoyGrowthPct']),
+                    width: 18,
+                    color: _num(validRows[i]['yoyGrowthPct']) >= 0
+                        ? AppColors.limeGreen
+                        : AppColors.burntOrange,
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(5)),
+                  ),
+                ],
+              ),
+          ],
+          gridData: const FlGridData(show: true, drawVerticalLine: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 42,
+                getTitlesWidget: (value, _) => Text(
+                  '${value.toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.grey600,
+                  ),
+                ),
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: 3,
+                getTitlesWidget: (value, _) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= validRows.length) {
+                    return const SizedBox.shrink();
+                  }
+                  return Text(
+                    _num(validRows[i]['year']).toInt().toString(),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: AppColors.grey600,
+                    ),
+                  );
                 },
               ),
             ),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 36,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 24, interval: 4,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(0),
-                      style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-          )),
-        ),
-      ).animate(delay: 80.ms).fadeIn(duration: 350.ms),
-      const SizedBox(height: 14),
-
-      // Box plots
-      if (isWide)
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(child: _boxPlotCard(bp1, district1, minY, maxY, AppColors.deepGreen)),
-          const SizedBox(width: 14),
-          Expanded(child: _boxPlotCard(bp2, _label(district2), minY, maxY, AppColors.skyBlue)),
-        ])
-      else ...[
-        _boxPlotCard(bp1, district1, minY, maxY, AppColors.deepGreen),
-        const SizedBox(height: 14),
-        _boxPlotCard(bp2, _label(district2), minY, maxY, AppColors.skyBlue),
-      ],
-      const SizedBox(height: 14),
-
-      // Radar chart
-      _radarCard(d1, d2).animate(delay: 200.ms).fadeIn(duration: 350.ms),
-      const SizedBox(height: 14),
-
-      // Stats table
-      _statsTable(d1, d2, district1, _label(district2))
-          .animate(delay: 260.ms)
-          .fadeIn(duration: 350.ms),
-    ]);
-  }
-
-  Widget _boxPlotCard(BoxPlotStats bp, String label, double minY, double maxY, Color color) {
-    return _ChartCard(
-      title: 'Box Plot: $label',
-      subtitle: 'Yield distribution (t/a)',
-      child: Column(children: [
-        SizedBox(
-          height: 180,
-          child: CustomPaint(
-            size: const Size(double.infinity, 180),
-            painter: _BoxPlotPainter(stats: bp, color: color, minY: minY, maxY: maxY),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
         ),
-        const SizedBox(height: 8),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          _bpStat('Min', bp.min, color),
-          _bpStat('Q1', bp.q1, color),
-          _bpStat('Median', bp.median, color),
-          _bpStat('Q3', bp.q3, color),
-          _bpStat('Max', bp.max, color),
-        ]),
-      ]),
-    ).animate(delay: 140.ms).fadeIn(duration: 350.ms);
-  }
-
-  Widget _bpStat(String label, double v, Color color) {
-    return Column(children: [
-      Text(v.toStringAsFixed(2),
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
-      Text(label, style: AppTextStyles.label.copyWith(fontSize: 9)),
-    ]);
-  }
-
-  Widget _radarCard(List<YieldData> d1, List<YieldData> d2) {
-    final y1 = d1.map((d) => d.yieldTAcre).toList();
-    final y2 = d2.map((d) => d.yieldTAcre).toList();
-    final n1 = d1.map((d) => d.ndvi).toList();
-    final n2 = d2.map((d) => d.ndvi).toList();
-
-    double norm(double v, double lo, double hi) =>
-        hi == lo ? 2.5 : ((v - lo) / (hi - lo) * 4 + 0.5).clamp(0.5, 5.0);
-
-    final mn1 = StatsUtils.mean(y1), mn2 = StatsUtils.mean(y2);
-    final cv1 = StatsUtils.coefficientOfVariation(y1);
-    final cv2 = StatsUtils.coefficientOfVariation(y2);
-    final nd1 = StatsUtils.mean(n1), nd2 = StatsUtils.mean(n2);
-    final re1 = d1.map((d) => d.yieldTAcre / (d.rainfallMm + 1) * 1000).toList();
-    final re2 = d2.map((d) => d.yieldTAcre / (d.rainfallMm + 1) * 1000).toList();
-    final gt1 = StatsUtils.linearRegression(
-        d1.map((d) => d.year.toDouble()).toList(), y1).slope;
-    final gt2 = StatsUtils.linearRegression(
-        d2.map((d) => d.year.toDouble()).toList(), y2).slope;
-
-    final vals1 = [mn1, 100 / (cv1 + 1), nd1 * 5, StatsUtils.mean(re1), gt1 + 2.5];
-    final vals2 = [mn2, 100 / (cv2 + 1), nd2 * 5, StatsUtils.mean(re2), gt2 + 2.5];
-    final lo = List.generate(5, (i) => math.min(vals1[i], vals2[i]));
-    final hi = List.generate(5, (i) => math.max(vals1[i], vals2[i]));
-    final r1 = List.generate(5, (i) => norm(vals1[i], lo[i], hi[i]));
-    final r2 = List.generate(5, (i) => norm(vals2[i], lo[i], hi[i]));
-
-    const axes = ['Mean Yield', 'Stability', 'NDVI Avg', 'Rain Eff.', 'Growth'];
-
-    return _ChartCard(
-      title: 'Radar Comparison',
-      subtitle: 'Normalized performance across 5 axes',
-      child: SizedBox(
-        height: 260,
-        child: RadarChart(RadarChartData(
-          radarShape: RadarShape.polygon,
-          dataSets: [
-            RadarDataSet(
-              fillColor: AppColors.deepGreen.withValues(alpha: 0.18),
-              borderColor: AppColors.deepGreen,
-              borderWidth: 2,
-              entryRadius: 3,
-              dataEntries: r1.map((v) => RadarEntry(value: v)).toList(),
-            ),
-            RadarDataSet(
-              fillColor: AppColors.skyBlue.withValues(alpha: 0.18),
-              borderColor: AppColors.skyBlue,
-              borderWidth: 2,
-              entryRadius: 3,
-              dataEntries: r2.map((v) => RadarEntry(value: v)).toList(),
-            ),
-          ],
-          getTitle: (i, _) => RadarChartTitle(text: axes[i], angle: 0),
-          titleTextStyle: const TextStyle(
-              fontSize: 10, color: AppColors.darkText, fontWeight: FontWeight.w600),
-          ticksTextStyle:
-              const TextStyle(color: Colors.transparent, fontSize: 8),
-          tickCount: 4,
-          tickBorderData: const BorderSide(color: AppColors.grey200, width: 1),
-          gridBorderData: const BorderSide(color: AppColors.grey200, width: 1),
-          radarBorderData: const BorderSide(color: AppColors.grey400, width: 1),
-        )),
-      ),
-    );
-  }
-
-  Widget _statsTable(List<YieldData> d1, List<YieldData> d2, String l1, String l2) {
-    final y1 = d1.map((d) => d.yieldTAcre).toList();
-    final y2 = d2.map((d) => d.yieldTAcre).toList();
-
-    final rows = [
-      ['Mean', StatsUtils.mean(y1), StatsUtils.mean(y2)],
-      ['Median', StatsUtils.median(y1), StatsUtils.median(y2)],
-      ['Std Dev', StatsUtils.standardDeviation(y1), StatsUtils.standardDeviation(y2)],
-      ['CV %', StatsUtils.coefficientOfVariation(y1), StatsUtils.coefficientOfVariation(y2)],
-      ['IQR', StatsUtils.iqr(y1), StatsUtils.iqr(y2)],
-      ['Skewness', StatsUtils.skewness(y1), StatsUtils.skewness(y2)],
-      ['P(y>2.0)',
-        StatsUtils.yieldExceedanceProbability(2.0, y1) * 100,
-        StatsUtils.yieldExceedanceProbability(2.0, y2) * 100],
-    ];
-
-    return _ChartCard(
-      title: 'Statistics Comparison',
-      subtitle: '$l1 vs $l2',
-      child: Table(
-        border: TableBorder.all(color: AppColors.grey200),
-        columnWidths: const {
-          0: FlexColumnWidth(1.5),
-          1: FlexColumnWidth(1),
-          2: FlexColumnWidth(1),
-          3: FlexColumnWidth(1),
-        },
-        children: [
-          TableRow(
-            decoration:
-                const BoxDecoration(color: Color(0xFFF5F5F5)),
-            children: [
-              _tc('Metric', isHeader: true),
-              _tc(l1, isHeader: true, color: AppColors.deepGreen),
-              _tc(l2, isHeader: true, color: AppColors.skyBlue),
-              _tc('Δ %', isHeader: true),
-            ],
-          ),
-          ...rows.map((r) {
-            final v1 = r[1] as double, v2 = r[2] as double;
-            final diff = v1 == 0 ? 0.0 : ((v2 - v1) / v1.abs() * 100);
-            final diffColor = diff > 0 ? AppColors.limeGreen : AppColors.burntOrange;
-            return TableRow(children: [
-              _tc(r[0] as String),
-              _tc(v1.toStringAsFixed(2)),
-              _tc(v2.toStringAsFixed(2)),
-              _tc('${diff > 0 ? '+' : ''}${diff.toStringAsFixed(1)}%', color: diffColor),
-            ]);
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _tc(String text,
-      {bool isHeader = false, Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      child: Text(
-        text,
-        style: isHeader
-            ? AppTextStyles.label.copyWith(color: color ?? AppColors.grey800)
-            : AppTextStyles.bodySmall.copyWith(
-                color: color ?? AppColors.darkText,
-                fontWeight:
-                    color != null ? FontWeight.w700 : FontWeight.w400),
-        textAlign: TextAlign.center,
       ),
     );
   }
 }
 
-// ─── Tab 5: Regression ────────────────────────────────────────────────────────
+class _MultiCropTrendChart extends StatelessWidget {
+  final Map<String, dynamic> crops;
 
-class _RegressionTab extends StatelessWidget {
-  final List<YieldData> data;
-  final bool isWide;
-
-  const _RegressionTab({required this.data, required this.isWide});
-
-  Color _eraColor(int year) {
-    if (year <= 2010) return AppColors.skyBlue;
-    if (year <= 2017) return AppColors.limeGreen;
-    return AppColors.amber;
-  }
+  const _MultiCropTrendChart({required this.crops});
 
   @override
   Widget build(BuildContext context) {
-    final yields = data.map((d) => d.yieldTAcre).toList();
-    final ndvis = data.map((d) => d.ndvi).toList();
-    final rains = data.map((d) => d.rainfallMm).toList();
-    final temps = data.map((d) => d.tempMaxC).toList();
-    final years = data.map((d) => d.year.toDouble()).toList();
+    final cropEntries = crops.entries.toList();
+    if (cropEntries.isEmpty) return const _EmptyChart();
 
-    final reg = StatsUtils.linearRegression(ndvis, yields);
-    final regRain = StatsUtils.linearRegression(rains, yields);
-    final regTemp = StatsUtils.linearRegression(temps, yields);
+    final bars = <LineChartBarData>[];
+    final allSpots = <FlSpot>[];
 
-    // Main scatter spots
-    final scatterSpots = data
-        .map((d) => ScatterSpot(
-              d.ndvi,
-              d.yieldTAcre,
-              dotPainter: FlDotCirclePainter(
-                radius: 5,
-                color: _eraColor(d.year),
-              ),
-            ))
-        .toList();
-
-    // Regression line
-    final ndviMin = ndvis.reduce(math.min);
-    final ndviMax = ndvis.reduce(math.max);
-    final regSpots = [
-      FlSpot(ndviMin, reg.slope * ndviMin + reg.intercept),
-      FlSpot(ndviMax, reg.slope * ndviMax + reg.intercept),
-    ];
-
-    // 95% Prediction interval
-    final n = data.length.toDouble();
-    final xMean = StatsUtils.mean(ndvis);
-    final sxx = ndvis.fold(0.0, (sum, x) => sum + (x - xMean) * (x - xMean));
-    final mse = reg.rSquared < 1 && n > 2
-        ? yields.asMap().entries.fold(
-                0.0,
-                (s, e) =>
-                    s +
-                    math.pow(
-                        e.value - (reg.slope * ndvis[e.key] + reg.intercept),
-                        2)) /
-            (n - 2)
-        : 0.0;
-    final seY = math.sqrt(mse);
-
-    final piUpper = [
-      FlSpot(ndviMin, reg.slope * ndviMin + reg.intercept + 2 * seY),
-      FlSpot(ndviMax, reg.slope * ndviMax + reg.intercept + 2 * seY),
-    ];
-    final piLower = [
-      FlSpot(ndviMin, reg.slope * ndviMin + reg.intercept - 2 * seY),
-      FlSpot(ndviMax, reg.slope * ndviMax + reg.intercept - 2 * seY),
-    ];
-
-    // Residuals
-    final residuals = data
-        .asMap()
-        .entries
-        .map((e) =>
-            e.value.yieldTAcre -
-            (reg.slope * e.value.ndvi + reg.intercept))
-        .toList();
-
-    // DW statistic
-    double dw = 2.0;
-    if (residuals.length > 1) {
-      double num = 0, den = 0;
-      for (int i = 1; i < residuals.length; i++) {
-        num += math.pow(residuals[i] - residuals[i - 1], 2);
-      }
-      for (final r in residuals) den += r * r;
-      dw = den == 0 ? 2.0 : num / den;
+    for (int i = 0; i < cropEntries.length; i++) {
+      final rows = _rows(_map(cropEntries[i].value)['yearly']);
+      final spots = rows
+          .map((row) => FlSpot(_num(row['year']), _num(row['yieldTAcre'])))
+          .where((spot) => spot.x > 0)
+          .toList();
+      if (spots.isEmpty) continue;
+      allSpots.addAll(spots);
+      bars.add(
+        LineChartBarData(
+          spots: spots,
+          color: AppColors.cropColors[i % AppColors.cropColors.length],
+          barWidth: 2.2,
+          isCurved: true,
+          dotData: const FlDotData(show: false),
+        ),
+      );
     }
 
-    // Q-Q plot
-    final sortedRes = List<double>.from(residuals)..sort();
-    final resMu = StatsUtils.mean(residuals);
-    final resSd = StatsUtils.standardDeviation(residuals);
-    final qqSpots = List.generate(sortedRes.length, (i) {
-      final p = (i + 0.5) / sortedRes.length;
-      final theoretical = StatsUtils.inverseCDF(p);
-      final actual = resSd == 0 ? 0.0 : (sortedRes[i] - resMu) / resSd;
-      return ScatterSpot(theoretical, actual,
-          dotPainter: FlDotCirclePainter(radius: 4, color: AppColors.skyBlue));
-    });
+    if (bars.isEmpty || allSpots.isEmpty) return const _EmptyChart();
+    final minX = allSpots.map((s) => s.x).reduce(math.min);
+    final maxX = allSpots.map((s) => s.x).reduce(math.max);
+    final minY = allSpots.map((s) => s.y).reduce(math.min) - 0.2;
+    final maxY = allSpots.map((s) => s.y).reduce(math.max) + 0.2;
 
-    // Standardized betas (via Pearson r with z-scored vars)
-    final beta1 = StatsUtils.pearsonCorrelation(ndvis, yields);
-    final beta2 = StatsUtils.pearsonCorrelation(rains, yields);
-    final beta3 = StatsUtils.pearsonCorrelation(temps, yields);
-
-    // Decomposition
-    final window = math.min(5, yields.length ~/ 2);
-    final trend = _movingAvg(yields, window);
-    final trendResidual =
-        List.generate(yields.length, (i) => yields[i] - trend[i]);
-
-    final scatterCsv = [
-      ['NDVI', 'Yield (t/a)', 'Year'],
-      ...data.map((d) => [
-            d.ndvi.toStringAsFixed(3),
-            d.yieldTAcre.toStringAsFixed(2),
-            d.year.toString(),
-          ]),
-    ];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(children: [
-        // Main scatter + regression
-        _ChartCard(
-          title: 'NDVI vs Yield — Regression',
-          subtitle:
-              'y = ${reg.slope.toStringAsFixed(3)}x + ${reg.intercept.toStringAsFixed(3)}  •  R² = ${reg.rSquared.toStringAsFixed(3)}  •  p = ${reg.pValue < 0.001 ? '<0.001' : reg.pValue.toStringAsFixed(3)}',
-          csvData: scatterCsv,
-          child: Column(children: [
-            SizedBox(
-              height: 240,
-              child: Stack(children: [
-                LineChart(LineChartData(
-                  lineBarsData: [
-                    // Regression line
-                    LineChartBarData(
-                      spots: regSpots,
-                      color: AppColors.deepGreen,
-                      barWidth: 2,
-                      dotData: const FlDotData(show: false),
-                    ),
-                    // PI upper
-                    LineChartBarData(
-                      spots: piUpper,
-                      color: AppColors.deepGreen.withValues(alpha: 0.35),
-                      barWidth: 1,
-                      dotData: const FlDotData(show: false),
-                      dashArray: [5, 4],
-                    ),
-                    // PI lower
-                    LineChartBarData(
-                      spots: piLower,
-                      color: AppColors.deepGreen.withValues(alpha: 0.35),
-                      barWidth: 1,
-                      dotData: const FlDotData(show: false),
-                      dashArray: [5, 4],
-                    ),
-                  ],
-                  borderData: FlBorderData(show: false),
-                  gridData: const FlGridData(show: true),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 36,
-                        getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                            style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-                    bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 24,
-                        getTitlesWidget: (v, _) => Text(v.toStringAsFixed(2),
-                            style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  lineTouchData: const LineTouchData(enabled: false),
-                )),
-                // Scatter overlay
-                Positioned.fill(
-                  child: ScatterChart(ScatterChartData(
-                    scatterSpots: scatterSpots,
-                    minX: ndviMin - 0.02,
-                    maxX: ndviMax + 0.02,
-                    borderData: FlBorderData(show: false),
-                    gridData: const FlGridData(show: false),
-                    titlesData: const FlTitlesData(
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    scatterTouchData: ScatterTouchData(
-                      touchTooltipData: ScatterTouchTooltipData(
-                        getTooltipColor: (_) => const Color(0xFF1B2B1E),
-                        getTooltipItems: (spot) => ScatterTooltipItem(
-                          'NDVI: ${spot.x.toStringAsFixed(3)}\nYield: ${spot.y.toStringAsFixed(2)} t/a',
-                          textStyle: const TextStyle(color: Colors.white, fontSize: 10),
-                          bottomMargin: 4,
-                        ),
+    return Column(
+      children: [
+        SizedBox(
+          height: 285,
+          child: LineChart(
+            LineChartData(
+              minX: minX,
+              maxX: maxX,
+              minY: math.max(0, minY),
+              maxY: maxY,
+              lineBarsData: bars,
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 42,
+                    getTitlesWidget: (value, _) => Text(
+                      value.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: AppColors.grey600,
                       ),
                     ),
-                  )),
+                  ),
                 ),
-              ]),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: 3,
+                    getTitlesWidget: (value, _) => Text(
+                      value.toInt().toString(),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: AppColors.grey600,
+                      ),
+                    ),
+                  ),
+                ),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _eraLegend(AppColors.skyBlue, '2005–2010'),
-              const SizedBox(width: 16),
-              _eraLegend(AppColors.limeGreen, '2011–2017'),
-              const SizedBox(width: 16),
-              _eraLegend(AppColors.amber, '2018–2023'),
-              const SizedBox(width: 16),
-              _eraLegend(AppColors.deepGreen, 'Regression line'),
-            ]),
-          ]),
-        ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.08, end: 0),
-        const SizedBox(height: 14),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _Legend(
+          items: [
+            for (int i = 0; i < cropEntries.length; i++)
+              _LegendItem(
+                label: _cropLabel(cropEntries[i].key),
+                color: AppColors.cropColors[i % AppColors.cropColors.length],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
-        // Partial regressions
-        if (isWide)
-          Row(children: [
-            Expanded(child: _miniScatter('NDVI → Yield', ndvis, yields, regSpots, AppColors.limeGreen)),
-            const SizedBox(width: 10),
-            Expanded(child: _miniScatter('Rainfall → Yield', rains, yields,
-                _regLine(rains, regRain), AppColors.skyBlue)),
-            const SizedBox(width: 10),
-            Expanded(child: _miniScatter('Temp → Yield', temps, yields,
-                _regLine(temps, regTemp), AppColors.amber)),
-          ])
-        else
-          Column(children: [
-            _miniScatter('NDVI → Yield', ndvis, yields, regSpots, AppColors.limeGreen),
-            const SizedBox(height: 10),
-            _miniScatter('Rainfall → Yield', rains, yields, _regLine(rains, regRain), AppColors.skyBlue),
-            const SizedBox(height: 10),
-            _miniScatter('Temp → Yield', temps, yields, _regLine(temps, regTemp), AppColors.amber),
-          ]),
-        const SizedBox(height: 14),
+class _CostProfitChart extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
 
-        // Standardized coefficients
-        _ChartCard(
-          title: 'Standardized Coefficients (β)',
-          subtitle: 'Relative importance of predictors (Pearson r)',
-          child: SizedBox(
-            height: 140,
-            child: BarChart(BarChartData(
+  const _CostProfitChart({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) return const _EmptyChart();
+    final values = [
+      ...rows.map((r) => _num(r['costPerAcre'])),
+      ...rows.map((r) => _num(r['profitPerAcre'])),
+    ];
+    final minY = math.min(0, values.reduce(math.min)) * 1.15;
+    final maxY = math.max(1, values.reduce(math.max)) * 1.18;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 285,
+          child: BarChart(
+            BarChartData(
+              minY: minY.toDouble(),
+              maxY: maxY.toDouble(),
               barGroups: [
-                _hBar(0, beta1, 'NDVI', AppColors.limeGreen),
-                _hBar(1, beta2, 'Rainfall', AppColors.skyBlue),
-                _hBar(2, beta3, 'Temp', AppColors.amber),
+                for (int i = 0; i < rows.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barsSpace: 3,
+                    barRods: [
+                      BarChartRodData(
+                        toY: _num(rows[i]['costPerAcre']),
+                        width: 7,
+                        color: AppColors.amber,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      BarChartRodData(
+                        toY: _num(rows[i]['profitPerAcre']),
+                        width: 7,
+                        color: _num(rows[i]['profitPerAcre']) >= 0
+                            ? AppColors.limeGreen
+                            : AppColors.burntOrange,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ],
+                  ),
               ],
-              borderData: FlBorderData(show: false),
               gridData: const FlGridData(show: true, drawVerticalLine: false),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => AppColors.deepGreen,
-                  getTooltipItem: (g, gi, rod, ri) {
-                    final labels = ['NDVI', 'Rainfall', 'Temp'];
-                    return BarTooltipItem(
-                      '${labels[g.x]}: ${rod.toY.toStringAsFixed(3)}',
-                      const TextStyle(color: Colors.white, fontSize: 11),
-                    );
-                  },
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 54,
+                    getTitlesWidget: (value, _) => Text(
+                      _compactMoney(value),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: AppColors.grey600,
+                      ),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 28,
+                    interval: 3,
+                    getTitlesWidget: (value, _) {
+                      final i = value.toInt();
+                      if (i < 0 || i >= rows.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        _num(rows[i]['year']).toInt().toString(),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: AppColors.grey600,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        const _Legend(
+          items: [
+            _LegendItem(label: 'Cost', color: AppColors.amber),
+            _LegendItem(label: 'Profit', color: AppColors.limeGreen),
+            _LegendItem(label: 'Loss year', color: AppColors.burntOrange),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ScatterMetricChart extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+  final String xKey;
+  final String yKey;
+  final String xLabel;
+  final String yLabel;
+  final Color color;
+
+  const _ScatterMetricChart({
+    required this.rows,
+    required this.xKey,
+    required this.yKey,
+    required this.xLabel,
+    required this.yLabel,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final spots = rows
+        .map(
+          (row) => ScatterSpot(
+            _num(row[xKey]),
+            _num(row[yKey]),
+            dotPainter: FlDotCirclePainter(
+              radius: 4.4,
+              color:
+                  row['weatherStress'] == true ? AppColors.burntOrange : color,
+              strokeColor: Colors.white,
+              strokeWidth: 1,
+            ),
+          ),
+        )
+        .where((spot) => spot.x > 0 && spot.y > 0)
+        .toList();
+
+    if (spots.isEmpty) return const _EmptyChart();
+
+    final xs = spots.map((s) => s.x).toList();
+    final ys = spots.map((s) => s.y).toList();
+    return SizedBox(
+      height: 270,
+      child: ScatterChart(
+        ScatterChartData(
+          scatterSpots: spots,
+          minX: xs.reduce(math.min) - 5,
+          maxX: xs.reduce(math.max) + 5,
+          minY: math.max(0, ys.reduce(math.min) - 0.25),
+          maxY: ys.reduce(math.max) + 0.25,
+          gridData: const FlGridData(show: true),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 42,
+                getTitlesWidget: (value, _) => Text(
+                  value.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.grey600,
+                  ),
                 ),
               ),
-              titlesData: FlTitlesData(
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 36,
-                    getTitlesWidget: (v, _) => Text(v.toStringAsFixed(2),
-                        style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 24,
-                    getTitlesWidget: (v, meta) {
-                      const labels = ['NDVI', 'Rain', 'Temp'];
-                      final i = v.round();
-                      if (i < 0 || i >= labels.length) return const SizedBox();
-                      return Text(labels[i],
-                          style: const TextStyle(fontSize: 9, color: AppColors.grey600));
-                    })),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              ),
-            )),
-          ),
-        ).animate(delay: 120.ms).fadeIn(duration: 350.ms),
-        const SizedBox(height: 14),
-
-        // Residuals + Q-Q
-        if (isWide)
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: _residualsChart(data, residuals, dw)),
-            const SizedBox(width: 14),
-            Expanded(child: _qqChart(qqSpots)),
-          ])
-        else ...[
-          _residualsChart(data, residuals, dw),
-          const SizedBox(height: 14),
-          _qqChart(qqSpots),
-        ],
-        const SizedBox(height: 14),
-
-        // Decomposition
-        _decompositionCard(data, yields, trend, trendResidual, years)
-            .animate(delay: 200.ms)
-            .fadeIn(duration: 350.ms),
-      ]),
-    );
-  }
-
-  Widget _eraLegend(Color color, String label) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 9.5, color: AppColors.grey600)),
-    ]);
-  }
-
-  List<FlSpot> _regLine(List<double> x, RegressionResult r) {
-    final xMin = x.reduce(math.min), xMax = x.reduce(math.max);
-    return [
-      FlSpot(xMin, r.slope * xMin + r.intercept),
-      FlSpot(xMax, r.slope * xMax + r.intercept),
-    ];
-  }
-
-  BarChartGroupData _hBar(int x, double y, String label, Color color) {
-    return BarChartGroupData(x: x, barRods: [
-      BarChartRodData(
-        toY: y,
-        width: 36,
-        color: color,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-      ),
-    ]);
-  }
-
-  Widget _miniScatter(
-      String title, List<double> xData, List<double> yData, List<FlSpot> line, Color color) {
-    final spots = List.generate(
-        xData.length,
-        (i) => ScatterSpot(xData[i], yData[i],
-            dotPainter: FlDotCirclePainter(radius: 3.5, color: color.withValues(alpha: 0.7))));
-    final r = StatsUtils.linearRegression(xData, yData);
-    return _ChartCard(
-      title: title,
-      subtitle: 'r = ${StatsUtils.pearsonCorrelation(xData, yData).toStringAsFixed(3)}',
-      child: SizedBox(
-        height: 130,
-        child: Stack(children: [
-          LineChart(LineChartData(
-            lineBarsData: [
-              LineChartBarData(
-                spots: line,
-                color: color,
-                barWidth: 1.5,
-                dotData: const FlDotData(show: false),
-              ),
-            ],
-            borderData: FlBorderData(show: false),
-            gridData: const FlGridData(show: true),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 32,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 8, color: AppColors.grey600)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 18,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 8, color: AppColors.grey600)))),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
-            lineTouchData: const LineTouchData(enabled: false),
-          )),
-          Positioned.fill(
-            child: ScatterChart(ScatterChartData(
-              scatterSpots: spots,
-              borderData: FlBorderData(show: false),
-              gridData: const FlGridData(show: false),
-              titlesData: const FlTitlesData(
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                getTitlesWidget: (value, _) => Text(
+                  value.toStringAsFixed(0),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    color: AppColors.grey600,
+                  ),
+                ),
               ),
-              scatterTouchData: ScatterTouchData(enabled: false),
-            )),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _residualsChart(List<YieldData> data, List<double> residuals, double dw) {
-    final maxAbs =
-        residuals.map((r) => r.abs()).fold(0.0, math.max) + 0.1;
-    final resSpotsColor = residuals.asMap().entries.map((e) {
-      final absR = e.value.abs();
-      final color = absR < 0.2
-          ? AppColors.limeGreen
-          : absR < 0.4
-              ? AppColors.amber
-              : AppColors.burntOrange;
-      return ScatterSpot(data[e.key].year.toDouble(), e.value,
-          dotPainter: FlDotCirclePainter(radius: 4, color: color));
-    }).toList();
-
-    final resCsv = [
-      ['Year', 'Residual'],
-      ...data
-          .asMap()
-          .entries
-          .map((e) => [e.value.year.toString(), residuals[e.key].toStringAsFixed(4)]),
-    ];
-
-    return _ChartCard(
-      title: 'Residuals',
-      subtitle: 'Durbin-Watson: ${dw.toStringAsFixed(3)}',
-      csvData: resCsv,
-      child: SizedBox(
-        height: 200,
-        child: ScatterChart(ScatterChartData(
-          scatterSpots: resSpotsColor,
-          minY: -maxAbs,
-          maxY: maxAbs,
-          borderData: FlBorderData(show: false),
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            getDrawingHorizontalLine: (v) =>
-                FlLine(color: v == 0 ? AppColors.deepGreen.withValues(alpha: 0.5) : AppColors.grey200,
-                    strokeWidth: v == 0 ? 1.5 : 0.5),
-          ),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 36,
-                getTitlesWidget: (v, _) => Text(v.toStringAsFixed(2),
-                    style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-            bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 24,
-                interval: 4,
-                getTitlesWidget: (v, _) => Text(v.toStringAsFixed(0),
-                    style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           scatterTouchData: ScatterTouchData(
             touchTooltipData: ScatterTouchTooltipData(
               getTooltipColor: (_) => const Color(0xFF1B2B1E),
               getTooltipItems: (spot) => ScatterTooltipItem(
-                'Year ${spot.x.toStringAsFixed(0)}\nResidual: ${spot.y.toStringAsFixed(3)}',
-                textStyle: const TextStyle(color: Colors.white, fontSize: 10),
-                bottomMargin: 4,
+                '$xLabel ${spot.x.toStringAsFixed(1)}\n'
+                '$yLabel ${spot.y.toStringAsFixed(2)}',
+                textStyle: const TextStyle(color: Colors.white, fontSize: 11),
               ),
             ),
           ),
-        )),
+        ),
       ),
-    ).animate(delay: 160.ms).fadeIn(duration: 350.ms);
+    );
   }
+}
 
-  Widget _qqChart(List<ScatterSpot> spots) {
-    final diag = spots.isEmpty
-        ? <FlSpot>[]
-        : [
-            FlSpot(spots.first.x, spots.first.x),
-            FlSpot(spots.last.x, spots.last.x),
-          ];
-    return _ChartCard(
-      title: 'Q-Q Plot',
-      subtitle: 'Theoretical vs actual residual quantiles',
-      child: SizedBox(
-        height: 200,
-        child: Stack(children: [
-          LineChart(LineChartData(
-            lineBarsData: [
-              LineChartBarData(
-                spots: diag,
-                color: AppColors.grey400,
-                barWidth: 1,
-                dotData: const FlDotData(show: false),
-                dashArray: [4, 4],
+class _DonutChart extends StatelessWidget {
+  final List<_Slice> slices;
+  final String centerLabel;
+
+  const _DonutChart({
+    required this.slices,
+    required this.centerLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final usable = slices.where((slice) => slice.value > 0).toList();
+    if (usable.isEmpty) return const _EmptyChart();
+    final total = usable.fold<double>(0, (sum, slice) => sum + slice.value);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 250,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 58,
+                  sections: [
+                    for (final slice in usable)
+                      PieChartSectionData(
+                        value: slice.value,
+                        title:
+                            '${(slice.value / total * 100).toStringAsFixed(0)}%',
+                        color: slice.color,
+                        radius: 72,
+                        titleStyle: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Text(
+                centerLabel,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.label.copyWith(letterSpacing: 0),
               ),
             ],
-            borderData: FlBorderData(show: false),
-            gridData: const FlGridData(show: true),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 36,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 24,
-                  getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                      style: const TextStyle(fontSize: 9, color: AppColors.grey600)))),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            lineTouchData: const LineTouchData(enabled: false),
-          )),
-          Positioned.fill(
-            child: ScatterChart(ScatterChartData(
-              scatterSpots: spots,
-              borderData: FlBorderData(show: false),
-              gridData: const FlGridData(show: false),
-              titlesData: const FlTitlesData(
-                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              ),
-              scatterTouchData: ScatterTouchData(enabled: false),
-            )),
           ),
-        ]),
-      ),
-    ).animate(delay: 180.ms).fadeIn(duration: 350.ms);
+        ),
+        _Legend(
+          items: usable
+              .map((slice) =>
+                  _LegendItem(label: slice.label, color: slice.color))
+              .toList(),
+        ),
+      ],
+    );
   }
+}
 
-  Widget _decompositionCard(List<YieldData> data, List<double> yields,
-      List<double> trend, List<double> residual, List<double> years) {
-    final trendSpots =
-        List.generate(data.length, (i) => FlSpot(years[i], trend[i]));
-    final resSpots = List.generate(
-        data.length, (i) => FlSpot(years[i], residual[i]));
-    final origSpots =
-        List.generate(data.length, (i) => FlSpot(years[i], yields[i]));
+class _ProbabilityChart extends StatelessWidget {
+  final Map<String, dynamic> probabilities;
 
-    final decCsv = [
-      ['Year', 'Original', 'Trend', 'Residual'],
-      ...List.generate(data.length, (i) => [
-            years[i].toStringAsFixed(0),
-            yields[i].toStringAsFixed(2),
-            trend[i].toStringAsFixed(2),
-            residual[i].toStringAsFixed(3),
-          ]),
+  const _ProbabilityChart({required this.probabilities});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _ProbabilityItem(
+          'Low yield', _num(probabilities['lowYield']), AppColors.amber),
+      _ProbabilityItem('High profit', _num(probabilities['highProfit']),
+          AppColors.limeGreen),
+      _ProbabilityItem('Crop failure', _num(probabilities['cropFailureRisk']),
+          AppColors.riskCritical),
+      _ProbabilityItem('Weather damage', _num(probabilities['weatherDamage']),
+          AppColors.burntOrange),
+      _ProbabilityItem(
+          'Price drop', _num(probabilities['priceDrop']), AppColors.skyBlue),
+      _ProbabilityItem('Loss', _num(probabilities['loss']), AppColors.amber),
     ];
 
-    return _ChartCard(
-      title: 'Time Series Decomposition',
-      subtitle: 'Original + trend (moving avg) + residual',
-      csvData: decCsv,
-      child: Column(children: [
-        _decompLine('Original', origSpots, AppColors.grey600, 200),
-        const SizedBox(height: 10),
-        _decompLine('Trend', trendSpots, AppColors.deepGreen, 160),
-        const SizedBox(height: 10),
-        _decompLine('Residual', resSpots, AppColors.burntOrange, 140),
-      ]),
+    return Column(
+      children: items.map((item) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 132,
+                child: Text(item.label, style: AppTextStyles.bodySmall),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: item.value.clamp(0.0, 1.0).toDouble(),
+                    minHeight: 12,
+                    color: item.color,
+                    backgroundColor: item.color.withValues(alpha: 0.12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  _pct(item.value),
+                  textAlign: TextAlign.right,
+                  style: AppTextStyles.label.copyWith(letterSpacing: 0),
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _ProbabilityItem {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _ProbabilityItem(this.label, this.value, this.color);
+}
+
+class _CropPerformanceTable extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _CropPerformanceTable({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) return const _EmptyChart();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingTextStyle:
+            AppTextStyles.label.copyWith(color: AppColors.grey800),
+        columns: const [
+          DataColumn(label: Text('Crop')),
+          DataColumn(label: Text('Season')),
+          DataColumn(label: Text('Mean yield')),
+          DataColumn(label: Text('Median')),
+          DataColumn(label: Text('Std dev')),
+          DataColumn(label: Text('Change')),
+          DataColumn(label: Text('Risk')),
+        ],
+        rows: rows.map((row) {
+          return DataRow(
+            cells: [
+              DataCell(Text(_cropLabel(_str(row['crop'])))),
+              DataCell(Text(_str(row['season']))),
+              DataCell(
+                Text('${_num(row['meanYield']).toStringAsFixed(2)} t/ac'),
+              ),
+              DataCell(Text(_num(row['medianYield']).toStringAsFixed(2))),
+              DataCell(Text(_num(row['stdDev']).toStringAsFixed(2))),
+              DataCell(
+                Text('${_num(row['percentChange']).toStringAsFixed(1)}%'),
+              ),
+              DataCell(_RiskPill(level: _str(row['riskLevel'], 'medium'))),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _ProfitTable extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _ProfitTable({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) return const _EmptyChart();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingTextStyle:
+            AppTextStyles.label.copyWith(color: AppColors.grey800),
+        columns: const [
+          DataColumn(label: Text('Crop')),
+          DataColumn(label: Text('Expected profit')),
+          DataColumn(label: Text('ROI')),
+          DataColumn(label: Text('Loss chance')),
+          DataColumn(label: Text('Risk')),
+        ],
+        rows: rows.map((row) {
+          return DataRow(
+            cells: [
+              DataCell(Text(_cropLabel(_str(row['crop'])))),
+              DataCell(Text(formatPKR(_num(row['expectedProfitPerAcre'])))),
+              DataCell(Text('${_num(row['roiPct']).toStringAsFixed(1)}%')),
+              DataCell(Text(_pct(_num(row['probabilityLoss'])))),
+              DataCell(_RiskPill(level: _str(row['riskLevel'], 'medium'))),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _RegressionPanel extends StatelessWidget {
+  final Map<String, dynamic> regression;
+  final String title;
+
+  const _RegressionPanel({
+    required this.regression,
+    this.title = 'Linear regression',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final available = regression['available'] == true;
+    return _Panel(
+      title: title,
+      subtitle: available ? 'Prediction model output' : 'Model not available',
+      child: available
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SmallFact(
+                  label: 'Equation',
+                  value: _str(regression['equation'], 'See coefficients'),
+                  color: AppColors.deepGreen,
+                  wide: true,
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _SmallFact(
+                      label: 'Predicted value',
+                      value: _fixed(regression['predictedValue']),
+                      color: AppColors.limeGreen,
+                    ),
+                    _SmallFact(
+                      label: 'Reliability',
+                      value:
+                          '${_num(regression['modelReliabilityPct']).toStringAsFixed(1)}%',
+                      color: AppColors.skyBlue,
+                    ),
+                    _SmallFact(
+                      label: 'R squared',
+                      value: _fixed(regression['rSquared']),
+                      color: AppColors.deepGreen,
+                    ),
+                    _SmallFact(
+                      label: 'p-value',
+                      value: _pValue(regression['pValue']),
+                      color: AppColors.amber,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _str(regression['explanation']),
+                  style: AppTextStyles.bodySmall,
+                ),
+              ],
+            )
+          : Text(
+              _str(regression['message'], 'Not enough data for this model.'),
+              style: AppTextStyles.bodySmall,
+            ),
+    );
+  }
+}
+
+class _ConfidencePanel extends StatelessWidget {
+  final String title;
+  final Map<String, dynamic> interval;
+  final String unit;
+  final bool isMoney;
+
+  const _ConfidencePanel({
+    required this.title,
+    required this.interval,
+    required this.unit,
+    this.isMoney = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final available = interval['available'] == true;
+    return _Panel(
+      title: title,
+      subtitle: 'Shows the likely range around the expected value',
+      child: available
+          ? Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _SmallFact(
+                  label: 'Mean',
+                  value: _intervalValue(interval['mean']),
+                  color: AppColors.deepGreen,
+                ),
+                _SmallFact(
+                  label: 'Lower',
+                  value: _intervalValue(interval['lower']),
+                  color: AppColors.amber,
+                ),
+                _SmallFact(
+                  label: 'Upper',
+                  value: _intervalValue(interval['upper']),
+                  color: AppColors.limeGreen,
+                ),
+                _SmallFact(
+                  label: 'Confidence',
+                  value:
+                      '${_num(interval['confidencePct']).toStringAsFixed(0)}%',
+                  color: AppColors.skyBlue,
+                ),
+                _SmallFact(
+                  label: 'Meaning',
+                  value: _str(interval['explanation']),
+                  color: AppColors.grey600,
+                  wide: true,
+                ),
+              ],
+            )
+          : Text(
+              _str(
+                interval['message'],
+                'Not enough data for a confidence interval.',
+              ),
+              style: AppTextStyles.bodySmall,
+            ),
     );
   }
 
-  Widget _decompLine(
-      String label, List<FlSpot> spots, Color color, double height) {
-    if (spots.isEmpty) return const SizedBox();
-    final yVals = spots.map((s) => s.y).toList();
-    final minY = yVals.reduce(math.min) - 0.1;
-    final maxY = yVals.reduce(math.max) + 0.1;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
-        padding: const EdgeInsets.only(left: 8, bottom: 2),
-        child: Text(label, style: AppTextStyles.label.copyWith(color: color)),
-      ),
-      SizedBox(
-        height: height,
-        child: LineChart(LineChartData(
-          minY: minY,
-          maxY: maxY,
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              color: color,
-              barWidth: 1.8,
-              isCurved: true,
-              curveSmoothness: 0.2,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  colors: [color.withValues(alpha: 0.2), Colors.transparent],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+  String _intervalValue(dynamic value) {
+    if (isMoney) return formatPKR(_num(value), compact: true);
+    return '${_num(value).toStringAsFixed(2)} $unit';
+  }
+}
+
+class _CorrelationPanel extends StatelessWidget {
+  final String title;
+  final Map<String, dynamic> correlation;
+
+  const _CorrelationPanel({
+    required this.title,
+    required this.correlation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final available = correlation['available'] == true;
+    return _Panel(
+      title: title,
+      subtitle: 'Pearson correlation with p-value',
+      child: available
+          ? Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _SmallFact(
+                  label: 'Correlation',
+                  value: _fixed(correlation['pearsonR']),
+                  color: AppColors.deepGreen,
                 ),
+                _SmallFact(
+                  label: 'Strength',
+                  value: _str(correlation['strength']),
+                  color: AppColors.skyBlue,
+                ),
+                _SmallFact(
+                  label: 'Direction',
+                  value: _str(correlation['direction']),
+                  color: AppColors.limeGreen,
+                ),
+                _SmallFact(
+                  label: 'p-value',
+                  value: _pValue(correlation['pValue']),
+                  color: AppColors.amber,
+                ),
+                _SmallFact(
+                  label: 'Meaning',
+                  value: _str(correlation['explanation']),
+                  color: AppColors.grey600,
+                  wide: true,
+                ),
+              ],
+            )
+          : Text(
+              _str(correlation['message'], 'Correlation cannot be calculated.'),
+              style: AppTextStyles.bodySmall,
+            ),
+    );
+  }
+}
+
+class _WeatherRiskCards extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+
+  const _WeatherRiskCards({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final stressYears = rows.where((r) => r['weatherStress'] == true).length;
+    final avgRain = _average(rows.map((r) => _num(r['rainfallMm'])));
+    final avgTemp = _average(rows.map((r) => _num(r['tempMaxC'])));
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _SmallFact(
+          label: 'Weather stress years',
+          value: '$stressYears of ${rows.length}',
+          color: AppColors.burntOrange,
+        ),
+        _SmallFact(
+          label: 'Avg rainfall',
+          value: '${avgRain.toStringAsFixed(0)} mm',
+          color: AppColors.skyBlue,
+        ),
+        _SmallFact(
+          label: 'Avg max temp',
+          value: '${avgTemp.toStringAsFixed(1)} C',
+          color: AppColors.amber,
+        ),
+      ],
+    );
+  }
+}
+
+class _RiskProbabilityCards extends StatelessWidget {
+  final Map<String, dynamic> probabilities;
+
+  const _RiskProbabilityCards({required this.probabilities});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _SmallFact(
+          label: 'Crop failure',
+          value: _pct(_num(probabilities['cropFailureRisk'])),
+          color: AppColors.riskCritical,
+        ),
+        _SmallFact(
+          label: 'Weather damage',
+          value: _pct(_num(probabilities['weatherDamage'])),
+          color: AppColors.burntOrange,
+        ),
+        _SmallFact(
+          label: 'Price drop',
+          value: _pct(_num(probabilities['priceDrop'])),
+          color: AppColors.skyBlue,
+        ),
+        _SmallFact(
+          label: 'Low yield',
+          value: _pct(_num(probabilities['lowYield'])),
+          color: AppColors.amber,
+        ),
+      ],
+    );
+  }
+}
+
+class _TestResultTile extends StatelessWidget {
+  final Map<String, dynamic> test;
+
+  const _TestResultTile({required this.test});
+
+  @override
+  Widget build(BuildContext context) {
+    if (test.isEmpty) return const SizedBox.shrink();
+    if (test['available'] != true) return _UnavailableTile(test: test);
+    final significant = test['significant'] == true;
+    final color = significant ? AppColors.deepGreen : AppColors.amber;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            significant ? Icons.check_circle_rounded : Icons.info_rounded,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${_str(test['test'], 'Statistical test')} - ${_str(test['metric'], 'metric')}',
+                  style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'p-value ${_pValue(test['pValue'])}. ${_str(test['explanation'])}',
+                  style: AppTextStyles.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnavailableTile extends StatelessWidget {
+  final Map<String, dynamic> test;
+
+  const _UnavailableTile({required this.test});
+
+  @override
+  Widget build(BuildContext context) {
+    if (test.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            color: AppColors.grey600,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _str(
+                test['message'],
+                'This test cannot be applied to the selected data.',
               ),
+              style: AppTextStyles.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TwoColumn extends StatelessWidget {
+  final Widget left;
+  final Widget right;
+
+  const _TwoColumn({
+    required this.left,
+    required this.right,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = MediaQuery.of(context).size.width >= 1050;
+    if (!wide) {
+      return Column(
+        children: [
+          left,
+          const SizedBox(height: 16),
+          right,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: 16),
+        Expanded(child: right),
+      ],
+    );
+  }
+}
+
+class _SmallFact extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool wide;
+
+  const _SmallFact({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.wide = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: wide ? 420 : 170,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: AppTextStyles.label.copyWith(letterSpacing: 0)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w700,
+              color: color == AppColors.grey600 ? AppColors.darkText : color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RiskPill extends StatelessWidget {
+  final String level;
+
+  const _RiskPill({required this.level});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _riskColor(level);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        _titleCase(level),
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _NoticeBanner extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+
+  const _NoticeBanner({
+    required this.icon,
+    required this.color,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+      color: color.withValues(alpha: 0.10),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.grey800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GraphNote extends StatelessWidget {
+  final String text;
+
+  const _GraphNote({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.lightbulb_outline_rounded,
+            size: 16,
+            color: AppColors.amber,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.grey600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  final List<_LegendItem> items;
+
+  const _Legend({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 6,
+      children: items
+          .map(
+            (item) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: item.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(item.label, style: AppTextStyles.bodySmall),
+              ],
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _LegendItem {
+  final String label;
+  final Color color;
+
+  const _LegendItem({required this.label, required this.color});
+}
+
+class _InsightBullet extends StatelessWidget {
+  final String text;
+
+  const _InsightBullet({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 6),
+            width: 6,
+            height: 6,
+            decoration: const BoxDecoration(
+              color: AppColors.deepGreen,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: AppTextStyles.bodyMedium)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DataQualityRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DataQualityRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 160,
+            child: Text(
+              _titleCase(label),
+              style: AppTextStyles.label.copyWith(letterSpacing: 0),
+            ),
+          ),
+          Expanded(child: Text(value, style: AppTextStyles.bodySmall)),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyChart extends StatelessWidget {
+  const _EmptyChart();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 180,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.grey100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        'No data available for this selection.',
+        style: AppTextStyles.bodySmall,
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  final String message;
+
+  const _ErrorState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 420,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.grey200),
+          boxShadow: AppShadows.card,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.burntOrange,
+              size: 34,
+            ),
+            const SizedBox(height: 10),
+            Text('Analytics could not load', style: AppTextStyles.headingSmall),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodySmall,
             ),
           ],
-          gridData: const FlGridData(show: true, drawVerticalLine: false),
-          borderData: FlBorderData(show: false),
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => AppColors.deepGreen,
-              getTooltipItems: (spots) => spots
-                  .map((s) => LineTooltipItem(
-                        s.y.toStringAsFixed(3),
-                        const TextStyle(color: Colors.white, fontSize: 11),
-                      ))
-                  .toList(),
-            ),
-          ),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40,
-                getTitlesWidget: (v, _) => Text(v.toStringAsFixed(1),
-                    style: const TextStyle(fontSize: 8, color: AppColors.grey600)))),
-            bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22, interval: 4,
-                getTitlesWidget: (v, _) => Text(v.toStringAsFixed(0),
-                    style: const TextStyle(fontSize: 8, color: AppColors.grey600)))),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-        )),
+        ),
       ),
-    ]);
+    );
   }
+}
 
-  List<double> _movingAvg(List<double> data, int window) {
-    return List.generate(data.length, (i) {
-      final start = math.max(0, i - window ~/ 2);
-      final end = math.min(data.length - 1, i + window ~/ 2);
-      return StatsUtils.mean(data.sublist(start, end + 1));
-    });
+class _Slice {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _Slice({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+}
+
+List<_Slice> _slicesFromRows(
+  List<Map<String, dynamic>> rows, {
+  required String valueKey,
+  required String labelKey,
+  bool positiveOnly = false,
+}) {
+  final slices = <_Slice>[];
+  for (int i = 0; i < rows.length; i++) {
+    final raw = _num(rows[i][valueKey]);
+    final value = positiveOnly ? math.max(0.0, raw) : raw.abs();
+    slices.add(
+      _Slice(
+        label: labelKey == 'crop'
+            ? _cropLabel(_str(rows[i][labelKey]))
+            : _str(rows[i][labelKey]),
+        value: value,
+        color: AppColors.cropColors[i % AppColors.cropColors.length],
+      ),
+    );
   }
+  return slices;
+}
+
+List<_Slice> _costBreakdownSlices(List<Map<String, dynamic>> rows) {
+  if (rows.isEmpty) return const [];
+  final latest = rows.last;
+  final total = _num(latest['costPerAcre']);
+  final fertilizer = _num(latest['fertilizerCostPerAcre']);
+  final irrigation = _num(latest['irrigationCostPerAcre']);
+  final other = math.max(0.0, total - fertilizer - irrigation);
+  return [
+    const _Slice(
+      label: 'Fertilizer',
+      value: 0,
+      color: AppColors.deepGreen,
+    ).copyWithValue(fertilizer),
+    const _Slice(
+      label: 'Irrigation',
+      value: 0,
+      color: AppColors.skyBlue,
+    ).copyWithValue(irrigation),
+    const _Slice(
+      label: 'Other',
+      value: 0,
+      color: AppColors.amber,
+    ).copyWithValue(other),
+  ];
+}
+
+extension _SliceCopy on _Slice {
+  _Slice copyWithValue(double nextValue) {
+    return _Slice(label: label, value: nextValue, color: color);
+  }
+}
+
+List<_Slice> _riskDistributionSlices(List<Map<String, dynamic>> rows) {
+  final counts = <String, int>{};
+  for (final row in rows) {
+    final level = _str(row['riskLevel'], 'unknown').toLowerCase();
+    counts[level] = (counts[level] ?? 0) + 1;
+  }
+  return counts.entries.map((entry) {
+    return _Slice(
+      label: _titleCase(entry.key),
+      value: entry.value.toDouble(),
+      color: _riskColor(entry.key),
+    );
+  }).toList();
+}
+
+Map<String, dynamic> _map(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return Map<String, dynamic>.from(value);
+  return <String, dynamic>{};
+}
+
+List<Map<String, dynamic>> _rows(dynamic value) {
+  if (value is! List) return <Map<String, dynamic>>[];
+  return value.map(_map).where((row) => row.isNotEmpty).toList();
+}
+
+List<String> _stringList(dynamic value) {
+  if (value is! List) return const <String>[];
+  return value.map((item) => item.toString()).toList();
+}
+
+double _num(dynamic value, [double fallback = 0.0]) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? fallback;
+  return fallback;
+}
+
+double _average(Iterable<double> values) {
+  final data = values.where((v) => v.isFinite).toList();
+  if (data.isEmpty) return 0;
+  return data.reduce((a, b) => a + b) / data.length;
+}
+
+String _str(dynamic value, [String fallback = '']) {
+  if (value == null) return fallback;
+  final text = value.toString();
+  return text.isEmpty ? fallback : text;
+}
+
+String _fixed(dynamic value, [int digits = 2]) =>
+    _num(value).toStringAsFixed(digits);
+
+String _pct(double value) => '${(value * 100).toStringAsFixed(0)}%';
+
+String _pValue(dynamic value) {
+  final v = _num(value, double.nan);
+  if (v.isNaN) return 'n/a';
+  if (v < 0.0001) return '<0.0001';
+  return v.toStringAsFixed(4);
+}
+
+String _cropLabel(String id) {
+  if (id == 'all') return 'All crops';
+  return AppCrops.all.firstWhere(
+    (crop) => crop['id'] == id,
+    orElse: () => {'label': _titleCase(id)},
+  )['label']!;
+}
+
+String _cropShort(String id) {
+  switch (id) {
+    case 'sugarcane':
+      return 'Sugar';
+    default:
+      return _cropLabel(id);
+  }
+}
+
+String _titleCase(String value) {
+  return value
+      .replaceAll('_', ' ')
+      .replaceAll('-', ' ')
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map((part) => part[0].toUpperCase() + part.substring(1))
+      .join(' ');
+}
+
+Color _riskColor(String level) {
+  switch (level.toLowerCase()) {
+    case 'low':
+    case 'good':
+      return AppColors.riskGood;
+    case 'medium':
+    case 'watch':
+      return AppColors.riskWatch;
+    case 'high':
+    case 'critical':
+      return AppColors.riskCritical;
+    default:
+      return AppColors.grey600;
+  }
+}
+
+String _compactMoney(double value) {
+  final abs = value.abs();
+  if (abs >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+  if (abs >= 1000) return '${(value / 1000).toStringAsFixed(0)}k';
+  return value.toStringAsFixed(0);
 }

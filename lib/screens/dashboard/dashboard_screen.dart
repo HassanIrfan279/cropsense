@@ -6,9 +6,19 @@ import 'package:cropsense/core/theme.dart';
 import 'package:cropsense/screens/dashboard/widgets/kpi_card.dart';
 import 'package:cropsense/screens/dashboard/widgets/alert_ticker.dart';
 import 'package:cropsense/screens/dashboard/widgets/province_summary_card.dart';
+import 'package:cropsense/providers/weather_provider.dart';
+import 'package:cropsense/data/models/weather_data.dart';
+import 'package:cropsense/shared/widgets/neon_background.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  static const _weatherDistricts = [
+    'faisalabad',
+    'multan',
+    'karachi',
+    'quetta'
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,14 +37,15 @@ class DashboardScreen extends ConsumerWidget {
 
             // ── Content below the hero ─────────────────────────────
             Padding(
-              padding: EdgeInsets.all(
-                  isCompact ? AppSpacing.md : AppSpacing.lg),
+              padding:
+                  EdgeInsets.all(isCompact ? AppSpacing.md : AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AlertTicker(alerts: _mockAlerts),
-                  const SizedBox(height: AppSpacing.lg),
-
+                  const SizedBox(height: AppSpacing.sm),
+                  _LiveWeatherStrip(districts: _weatherDistricts, ref: ref),
+                  const SizedBox(height: AppSpacing.md),
                   Row(children: [
                     Text('Province Overview',
                         style: AppTextStyles.headingMedium),
@@ -46,10 +57,8 @@ class DashboardScreen extends ConsumerWidget {
                     ),
                   ]),
                   const SizedBox(height: AppSpacing.md),
-
                   _buildProvinceGrid(isWide, isCompact),
                   const SizedBox(height: AppSpacing.lg),
-
                   _buildBottomRow(context, isCompact),
                   const SizedBox(height: AppSpacing.xl),
                 ],
@@ -130,13 +139,10 @@ class DashboardScreen extends ConsumerWidget {
             style: AppTextStyles.displayLarge.copyWith(
               color: Colors.white,
               fontSize: isCompact ? 22 : 30,
-              letterSpacing: -0.5,
+              letterSpacing: 0,
             ),
-          )
-              .animate()
-              .fadeIn(duration: 600.ms)
-              .slideX(begin: -0.04, end: 0, duration: 500.ms,
-                  curve: Curves.easeOut),
+          ).animate().fadeIn(duration: 600.ms).slideX(
+              begin: -0.04, end: 0, duration: 500.ms, curve: Curves.easeOut),
           const SizedBox(height: 6),
           Text(
             'Real-time crop monitoring across 36 districts · '
@@ -157,19 +163,20 @@ class DashboardScreen extends ConsumerWidget {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Container(
-            width: 8, height: 8,
+            width: 8,
+            height: 8,
             decoration: const BoxDecoration(
-              color: AppColors.limeGreen, shape: BoxShape.circle),
+                color: AppColors.limeGreen, shape: BoxShape.circle),
           )
               .animate(onPlay: (c) => c.repeat())
-              .scaleXY(begin: 1, end: 1.7, duration: 900.ms,
-                  curve: Curves.easeInOut)
+              .scaleXY(
+                  begin: 1, end: 1.7, duration: 900.ms, curve: Curves.easeInOut)
               .then()
               .scaleXY(begin: 1.7, end: 1, duration: 900.ms),
           const SizedBox(width: 8),
           Text('Live Data',
-              style: AppTextStyles.label.copyWith(
-                color: Colors.white, fontWeight: FontWeight.w700)),
+              style: AppTextStyles.label
+                  .copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
         ]),
       ).animate(delay: 200.ms).fadeIn(duration: 500.ms),
     ]);
@@ -313,17 +320,8 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildQuickActions(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF3F8F3)],
-        ),
-        borderRadius: AppRadius.cardRadius,
-        border: Border.all(color: AppColors.grey200),
-        boxShadow: AppShadows.card,
-      ),
+    return GlassPanel(
+      glowColor: AppColors.amber,
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -340,16 +338,26 @@ class DashboardScreen extends ConsumerWidget {
           Text('Quick Actions', style: AppTextStyles.headingSmall),
         ]),
         const SizedBox(height: AppSpacing.md),
-        _ActionButton(icon: Icons.psychology_rounded, label: 'Get AI Advice',
-            color: AppColors.amber, onTap: () => context.go('/ai-advisor')),
+        _ActionButton(
+            icon: Icons.psychology_rounded,
+            label: 'Get AI Advice',
+            color: AppColors.amber,
+            onTap: () => context.go('/ai-advisor')),
         const SizedBox(height: AppSpacing.sm),
-        _ActionButton(icon: Icons.map_rounded, label: 'View Risk Map',
-            color: AppColors.skyBlue, onTap: () => context.go('/map')),
+        _ActionButton(
+            icon: Icons.map_rounded,
+            label: 'View Risk Map',
+            color: AppColors.skyBlue,
+            onTap: () => context.go('/map')),
         const SizedBox(height: AppSpacing.sm),
-        _ActionButton(icon: Icons.bar_chart_rounded, label: 'Open Analytics',
-            color: AppColors.limeGreen, onTap: () => context.go('/analytics')),
+        _ActionButton(
+            icon: Icons.bar_chart_rounded,
+            label: 'Open Analytics',
+            color: AppColors.limeGreen,
+            onTap: () => context.go('/analytics')),
         const SizedBox(height: AppSpacing.sm),
-        _ActionButton(icon: Icons.picture_as_pdf_rounded,
+        _ActionButton(
+            icon: Icons.picture_as_pdf_rounded,
             label: 'Generate Report',
             color: AppColors.burntOrange,
             onTap: () => context.go('/reports')),
@@ -358,17 +366,8 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildRecentQueries() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF3F8F3)],
-        ),
-        borderRadius: AppRadius.cardRadius,
-        border: Border.all(color: AppColors.grey200),
-        boxShadow: AppShadows.card,
-      ),
+    return GlassPanel(
+      glowColor: AppColors.skyBlue,
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -440,12 +439,10 @@ class _ActionButtonState extends State<_ActionButton> {
                 const SizedBox(width: AppSpacing.sm),
                 Text(widget.label,
                     style: AppTextStyles.bodyMedium.copyWith(
-                      color: widget.color, fontWeight: FontWeight.w600)),
+                        color: widget.color, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 AnimatedSlide(
-                  offset: _hovered
-                      ? const Offset(0.25, 0)
-                      : Offset.zero,
+                  offset: _hovered ? const Offset(0.25, 0) : Offset.zero,
                   duration: const Duration(milliseconds: 140),
                   child: Icon(Icons.arrow_forward_ios_rounded,
                       color: widget.color.withValues(alpha: 0.5), size: 14),
@@ -470,7 +467,8 @@ class _QueryTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(children: [
         Container(
-          width: 36, height: 36,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: AppColors.deepGreen.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
@@ -480,7 +478,8 @@ class _QueryTile extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(query.title,
                 style: AppTextStyles.bodyMedium
                     .copyWith(fontWeight: FontWeight.w600)),
@@ -494,32 +493,196 @@ class _QueryTile extends StatelessWidget {
             color: query.riskColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(100),
           ),
-          child: Text(query.risk, style: TextStyle(
-            color: query.riskColor, fontSize: 11, fontWeight: FontWeight.w600)),
+          child: Text(query.risk,
+              style: TextStyle(
+                  color: query.riskColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
         ),
       ]),
     );
   }
 }
 
+// ── Live Weather Strip ────────────────────────────────────────────────────────
+class _LiveWeatherStrip extends ConsumerStatefulWidget {
+  final List<String> districts;
+  final WidgetRef ref;
+  const _LiveWeatherStrip({required this.districts, required this.ref});
+
+  @override
+  ConsumerState<_LiveWeatherStrip> createState() => _LiveWeatherStripState();
+}
+
+class _LiveWeatherStripState extends ConsumerState<_LiveWeatherStrip> {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 72,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: widget.districts.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+        itemBuilder: (context, index) {
+          final district = widget.districts[index];
+          final weatherAsync = ref.watch(weatherProvider(district));
+          return weatherAsync.when(
+            loading: () => _WeatherTile.loading(district),
+            error: (_, __) => _WeatherTile.error(district),
+            data: (w) => _WeatherTile(weather: w),
+          );
+        },
+      ),
+    ).animate().fadeIn(duration: 400.ms, delay: 150.ms);
+  }
+}
+
+class _WeatherTile extends StatelessWidget {
+  final WeatherData? weather;
+  final String? districtLabel;
+  final bool isLoading;
+  final bool isError;
+
+  const _WeatherTile({required WeatherData this.weather})
+      : districtLabel = null,
+        isLoading = false,
+        isError = false;
+
+  const _WeatherTile.loading(String district)
+      : weather = null,
+        districtLabel = district,
+        isLoading = true,
+        isError = false;
+
+  const _WeatherTile.error(String district)
+      : weather = null,
+        districtLabel = district,
+        isLoading = false,
+        isError = true;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return _tileShell(
+        district: districtLabel!,
+        child: const Center(
+          child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      );
+    }
+    if (isError || weather == null) {
+      return _tileShell(
+        district: districtLabel!,
+        child:
+            const Icon(Icons.cloud_off_rounded, size: 18, color: Colors.grey),
+      );
+    }
+
+    final w = weather!;
+    final tempColor = w.heatStressAlert
+        ? AppColors.burntOrange
+        : w.temperature > 35
+            ? AppColors.amber
+            : AppColors.limeGreen;
+
+    return _tileShell(
+      district: w.district[0].toUpperCase() + w.district.substring(1),
+      child: Row(children: [
+        // Temperature badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: tempColor.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (w.heatStressAlert)
+              const Icon(Icons.local_fire_department_rounded,
+                  size: 12, color: Colors.deepOrange),
+            Text('${w.temperature.toStringAsFixed(0)}°C',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: tempColor)),
+          ]),
+        ),
+        const SizedBox(width: 6),
+        // Rainfall
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(
+            w.droughtAlert
+                ? Icons.water_drop_outlined
+                : Icons.water_drop_rounded,
+            size: 12,
+            color: w.droughtAlert ? AppColors.burntOrange : AppColors.skyBlue,
+          ),
+          const SizedBox(width: 2),
+          Text('${w.rainfall30day.toStringAsFixed(0)}mm',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: w.droughtAlert
+                      ? AppColors.burntOrange
+                      : AppColors.skyBlue)),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tileShell({required String district, required Widget child}) {
+    return Container(
+      width: 160,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppRadius.chipRadius,
+        border: Border.all(color: AppColors.grey200),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            district,
+            style: AppTextStyles.label.copyWith(
+                color: AppColors.deepGreen, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 // ── Mock data ─────────────────────────────────────────────────────────────────
 final _mockAlerts = [
-  const AlertTickerItem(district: 'Quetta',
+  const AlertTickerItem(
+      district: 'Quetta',
       message: 'Critical drought conditions — yield forecast below 1.0 t/acre',
       severity: 'critical'),
-  const AlertTickerItem(district: 'Multan',
+  const AlertTickerItem(
+      district: 'Multan',
       message: 'High rust risk detected — immediate fungicide recommended',
       severity: 'high'),
-  const AlertTickerItem(district: 'Karachi',
+  const AlertTickerItem(
+      district: 'Karachi',
       message: 'Extreme heat stress — NDVI dropping rapidly',
       severity: 'high'),
-  const AlertTickerItem(district: 'Tharparkar',
+  const AlertTickerItem(
+      district: 'Tharparkar',
       message: 'Rainfall 60% below seasonal average',
       severity: 'critical'),
-  const AlertTickerItem(district: 'Faisalabad',
+  const AlertTickerItem(
+      district: 'Faisalabad',
       message: 'Watch: Soil moisture declining — consider irrigation',
       severity: 'watch'),
-  const AlertTickerItem(district: 'Sukkur',
+  const AlertTickerItem(
+      district: 'Sukkur',
       message: 'Pest pressure increasing — monitor cotton fields',
       severity: 'watch'),
 ];
@@ -528,23 +691,42 @@ class _MockQuery {
   final String title, district, crop, time, risk;
   final Color riskColor;
   const _MockQuery({
-    required this.title, required this.district,
-    required this.crop, required this.time,
-    required this.risk, required this.riskColor,
+    required this.title,
+    required this.district,
+    required this.crop,
+    required this.time,
+    required this.risk,
+    required this.riskColor,
   });
 }
 
 final _mockQueries = [
-  _MockQuery(title: 'Rust disease diagnosis', district: 'Faisalabad',
-      crop: 'Wheat', time: '2h ago', risk: 'High',
+  _MockQuery(
+      title: 'Rust disease diagnosis',
+      district: 'Faisalabad',
+      crop: 'Wheat',
+      time: '2h ago',
+      risk: 'High',
       riskColor: AppColors.burntOrange),
-  _MockQuery(title: 'Irrigation schedule', district: 'Multan',
-      crop: 'Cotton', time: '4h ago', risk: 'Watch',
+  _MockQuery(
+      title: 'Irrigation schedule',
+      district: 'Multan',
+      crop: 'Cotton',
+      time: '4h ago',
+      risk: 'Watch',
       riskColor: AppColors.amber),
-  _MockQuery(title: 'Yield forecast review', district: 'Lahore',
-      crop: 'Rice', time: '6h ago', risk: 'Good',
+  _MockQuery(
+      title: 'Yield forecast review',
+      district: 'Lahore',
+      crop: 'Rice',
+      time: '6h ago',
+      risk: 'Good',
       riskColor: AppColors.limeGreen),
-  _MockQuery(title: 'Fertilizer advice', district: 'Peshawar',
-      crop: 'Maize', time: '8h ago', risk: 'Good',
+  _MockQuery(
+      title: 'Fertilizer advice',
+      district: 'Peshawar',
+      crop: 'Maize',
+      time: '8h ago',
+      risk: 'Good',
       riskColor: AppColors.limeGreen),
 ];

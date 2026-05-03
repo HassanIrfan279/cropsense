@@ -17,6 +17,27 @@ _$RiskMapEntryImpl _$$RiskMapEntryImplFromJson(Map<String, dynamic> json) =>
             (k, e) => MapEntry(k, (e as num).toDouble()),
           ) ??
           const {},
+      selectedCrop: json['selectedCrop'] as String? ?? '',
+      selectedYear: (json['selectedYear'] as num?)?.toInt(),
+      yieldTAcre: (json['yieldTAcre'] as num?)?.toDouble(),
+      productionTons: (json['productionTons'] as num?)?.toDouble(),
+      rainfallMm: (json['rainfallMm'] as num?)?.toDouble(),
+      yieldChangePct: (json['yieldChangePct'] as num?)?.toDouble(),
+      dataAvailable: json['dataAvailable'] as bool? ?? true,
+      dataSource: json['dataSource'] as String? ?? '',
+      weatherRisks: (json['weatherRisks'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      cropRisks: (json['cropRisks'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
+      aiExplanation: json['aiExplanation'] as String? ?? '',
+      limitations: (json['limitations'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const [],
       ndvi: (json['ndvi'] as num?)?.toDouble() ?? 0.0,
       alertCount: (json['alertCount'] as num?)?.toInt() ?? 0,
     );
@@ -29,6 +50,18 @@ Map<String, dynamic> _$$RiskMapEntryImplToJson(_$RiskMapEntryImpl instance) =>
       'riskLevel': _$RiskLevelEnumMap[instance.riskLevel]!,
       'riskScore': instance.riskScore,
       'cropYields': instance.cropYields,
+      'selectedCrop': instance.selectedCrop,
+      'selectedYear': instance.selectedYear,
+      'yieldTAcre': instance.yieldTAcre,
+      'productionTons': instance.productionTons,
+      'rainfallMm': instance.rainfallMm,
+      'yieldChangePct': instance.yieldChangePct,
+      'dataAvailable': instance.dataAvailable,
+      'dataSource': instance.dataSource,
+      'weatherRisks': instance.weatherRisks,
+      'cropRisks': instance.cropRisks,
+      'aiExplanation': instance.aiExplanation,
+      'limitations': instance.limitations,
       'ndvi': instance.ndvi,
       'alertCount': instance.alertCount,
     };
@@ -52,6 +85,10 @@ _$RiskMapResponseImpl _$$RiskMapResponseImplFromJson(
       criticalCount: (json['criticalCount'] as num?)?.toInt() ?? 0,
       highCount: (json['highCount'] as num?)?.toInt() ?? 0,
       watchCount: (json['watchCount'] as num?)?.toInt() ?? 0,
+      selectedCrop: json['selectedCrop'] as String? ?? '',
+      selectedYear: (json['selectedYear'] as num?)?.toInt(),
+      yearRange: json['yearRange'] as String? ?? '',
+      dataSource: json['dataSource'] as String? ?? '',
     );
 
 Map<String, dynamic> _$$RiskMapResponseImplToJson(
@@ -63,4 +100,8 @@ Map<String, dynamic> _$$RiskMapResponseImplToJson(
       'criticalCount': instance.criticalCount,
       'highCount': instance.highCount,
       'watchCount': instance.watchCount,
+      'selectedCrop': instance.selectedCrop,
+      'selectedYear': instance.selectedYear,
+      'yearRange': instance.yearRange,
+      'dataSource': instance.dataSource,
     };

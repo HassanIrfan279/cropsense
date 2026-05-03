@@ -6,11 +6,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GROK_API_KEY = os.getenv('GROK_API_KEY', '')
 GROK_URL = 'https://api.x.ai/v1/chat/completions'
 
+
+def _grok_key() -> str:
+    return os.getenv('GROK_API_KEY') or os.getenv('XAI_API_KEY') or ''
+
+
+def _grok_text_model() -> str:
+    return os.getenv('GROK_MODEL', 'grok-4.3')
+
+
+def _grok_timeout_seconds() -> float:
+    try:
+        return float(os.getenv('GROK_TIMEOUT_SECONDS', '35'))
+    except ValueError:
+        return 35.0
+
 async def get_grok_advice(req) -> dict:
-    if not GROK_API_KEY or GROK_API_KEY == 'your_grok_key_here':
+    grok_api_key = _grok_key()
+    if not grok_api_key or grok_api_key == 'your_grok_key_here':
         raise ValueError('No Grok API key configured')
 
     symptoms_text = ', '.join(req.symptoms) if req.symptoms else 'no symptoms'
@@ -56,15 +71,15 @@ Respond with ONLY a valid JSON object (no markdown, no backticks):
 }}"""
 
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
+        async with httpx.AsyncClient(timeout=_grok_timeout_seconds()) as client:
             response = await client.post(
                 GROK_URL,
                 headers={
-                    'Authorization': f'Bearer {GROK_API_KEY}',
+                    'Authorization': f'Bearer {grok_api_key}',
                     'Content-Type': 'application/json',
                 },
                 json={
-                    'model': 'grok-beta',
+                    'model': _grok_text_model(),
                     'messages': [
                         {
                             'role': 'system',

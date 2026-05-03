@@ -32,7 +32,19 @@ mixin _$RiskMapEntry {
   double get riskScore =>
       throw _privateConstructorUsedError; // Yield forecasts per crop: { "wheat": 2.3, "rice": 1.8, ... }
 // Using Map<String, double> because crops may vary by district
-  Map<String, double> get cropYields =>
+  Map<String, double> get cropYields => throw _privateConstructorUsedError;
+  String get selectedCrop => throw _privateConstructorUsedError;
+  int? get selectedYear => throw _privateConstructorUsedError;
+  double? get yieldTAcre => throw _privateConstructorUsedError;
+  double? get productionTons => throw _privateConstructorUsedError;
+  double? get rainfallMm => throw _privateConstructorUsedError;
+  double? get yieldChangePct => throw _privateConstructorUsedError;
+  bool get dataAvailable => throw _privateConstructorUsedError;
+  String get dataSource => throw _privateConstructorUsedError;
+  List<String> get weatherRisks => throw _privateConstructorUsedError;
+  List<String> get cropRisks => throw _privateConstructorUsedError;
+  String get aiExplanation => throw _privateConstructorUsedError;
+  List<String> get limitations =>
       throw _privateConstructorUsedError; // Current NDVI for quick display on map tooltip
   double get ndvi =>
       throw _privateConstructorUsedError; // Number of active alerts for this district
@@ -57,6 +69,18 @@ abstract class $RiskMapEntryCopyWith<$Res> {
       RiskLevel riskLevel,
       double riskScore,
       Map<String, double> cropYields,
+      String selectedCrop,
+      int? selectedYear,
+      double? yieldTAcre,
+      double? productionTons,
+      double? rainfallMm,
+      double? yieldChangePct,
+      bool dataAvailable,
+      String dataSource,
+      List<String> weatherRisks,
+      List<String> cropRisks,
+      String aiExplanation,
+      List<String> limitations,
       double ndvi,
       int alertCount});
 }
@@ -80,6 +104,18 @@ class _$RiskMapEntryCopyWithImpl<$Res, $Val extends RiskMapEntry>
     Object? riskLevel = null,
     Object? riskScore = null,
     Object? cropYields = null,
+    Object? selectedCrop = null,
+    Object? selectedYear = freezed,
+    Object? yieldTAcre = freezed,
+    Object? productionTons = freezed,
+    Object? rainfallMm = freezed,
+    Object? yieldChangePct = freezed,
+    Object? dataAvailable = null,
+    Object? dataSource = null,
+    Object? weatherRisks = null,
+    Object? cropRisks = null,
+    Object? aiExplanation = null,
+    Object? limitations = null,
     Object? ndvi = null,
     Object? alertCount = null,
   }) {
@@ -108,6 +144,54 @@ class _$RiskMapEntryCopyWithImpl<$Res, $Val extends RiskMapEntry>
           ? _value.cropYields
           : cropYields // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
+      selectedCrop: null == selectedCrop
+          ? _value.selectedCrop
+          : selectedCrop // ignore: cast_nullable_to_non_nullable
+              as String,
+      selectedYear: freezed == selectedYear
+          ? _value.selectedYear
+          : selectedYear // ignore: cast_nullable_to_non_nullable
+              as int?,
+      yieldTAcre: freezed == yieldTAcre
+          ? _value.yieldTAcre
+          : yieldTAcre // ignore: cast_nullable_to_non_nullable
+              as double?,
+      productionTons: freezed == productionTons
+          ? _value.productionTons
+          : productionTons // ignore: cast_nullable_to_non_nullable
+              as double?,
+      rainfallMm: freezed == rainfallMm
+          ? _value.rainfallMm
+          : rainfallMm // ignore: cast_nullable_to_non_nullable
+              as double?,
+      yieldChangePct: freezed == yieldChangePct
+          ? _value.yieldChangePct
+          : yieldChangePct // ignore: cast_nullable_to_non_nullable
+              as double?,
+      dataAvailable: null == dataAvailable
+          ? _value.dataAvailable
+          : dataAvailable // ignore: cast_nullable_to_non_nullable
+              as bool,
+      dataSource: null == dataSource
+          ? _value.dataSource
+          : dataSource // ignore: cast_nullable_to_non_nullable
+              as String,
+      weatherRisks: null == weatherRisks
+          ? _value.weatherRisks
+          : weatherRisks // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      cropRisks: null == cropRisks
+          ? _value.cropRisks
+          : cropRisks // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      aiExplanation: null == aiExplanation
+          ? _value.aiExplanation
+          : aiExplanation // ignore: cast_nullable_to_non_nullable
+              as String,
+      limitations: null == limitations
+          ? _value.limitations
+          : limitations // ignore: cast_nullable_to_non_nullable
+              as List<String>,
       ndvi: null == ndvi
           ? _value.ndvi
           : ndvi // ignore: cast_nullable_to_non_nullable
@@ -135,6 +219,18 @@ abstract class _$$RiskMapEntryImplCopyWith<$Res>
       RiskLevel riskLevel,
       double riskScore,
       Map<String, double> cropYields,
+      String selectedCrop,
+      int? selectedYear,
+      double? yieldTAcre,
+      double? productionTons,
+      double? rainfallMm,
+      double? yieldChangePct,
+      bool dataAvailable,
+      String dataSource,
+      List<String> weatherRisks,
+      List<String> cropRisks,
+      String aiExplanation,
+      List<String> limitations,
       double ndvi,
       int alertCount});
 }
@@ -156,6 +252,18 @@ class __$$RiskMapEntryImplCopyWithImpl<$Res>
     Object? riskLevel = null,
     Object? riskScore = null,
     Object? cropYields = null,
+    Object? selectedCrop = null,
+    Object? selectedYear = freezed,
+    Object? yieldTAcre = freezed,
+    Object? productionTons = freezed,
+    Object? rainfallMm = freezed,
+    Object? yieldChangePct = freezed,
+    Object? dataAvailable = null,
+    Object? dataSource = null,
+    Object? weatherRisks = null,
+    Object? cropRisks = null,
+    Object? aiExplanation = null,
+    Object? limitations = null,
     Object? ndvi = null,
     Object? alertCount = null,
   }) {
@@ -184,6 +292,54 @@ class __$$RiskMapEntryImplCopyWithImpl<$Res>
           ? _value._cropYields
           : cropYields // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
+      selectedCrop: null == selectedCrop
+          ? _value.selectedCrop
+          : selectedCrop // ignore: cast_nullable_to_non_nullable
+              as String,
+      selectedYear: freezed == selectedYear
+          ? _value.selectedYear
+          : selectedYear // ignore: cast_nullable_to_non_nullable
+              as int?,
+      yieldTAcre: freezed == yieldTAcre
+          ? _value.yieldTAcre
+          : yieldTAcre // ignore: cast_nullable_to_non_nullable
+              as double?,
+      productionTons: freezed == productionTons
+          ? _value.productionTons
+          : productionTons // ignore: cast_nullable_to_non_nullable
+              as double?,
+      rainfallMm: freezed == rainfallMm
+          ? _value.rainfallMm
+          : rainfallMm // ignore: cast_nullable_to_non_nullable
+              as double?,
+      yieldChangePct: freezed == yieldChangePct
+          ? _value.yieldChangePct
+          : yieldChangePct // ignore: cast_nullable_to_non_nullable
+              as double?,
+      dataAvailable: null == dataAvailable
+          ? _value.dataAvailable
+          : dataAvailable // ignore: cast_nullable_to_non_nullable
+              as bool,
+      dataSource: null == dataSource
+          ? _value.dataSource
+          : dataSource // ignore: cast_nullable_to_non_nullable
+              as String,
+      weatherRisks: null == weatherRisks
+          ? _value._weatherRisks
+          : weatherRisks // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      cropRisks: null == cropRisks
+          ? _value._cropRisks
+          : cropRisks // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      aiExplanation: null == aiExplanation
+          ? _value.aiExplanation
+          : aiExplanation // ignore: cast_nullable_to_non_nullable
+              as String,
+      limitations: null == limitations
+          ? _value._limitations
+          : limitations // ignore: cast_nullable_to_non_nullable
+              as List<String>,
       ndvi: null == ndvi
           ? _value.ndvi
           : ndvi // ignore: cast_nullable_to_non_nullable
@@ -206,9 +362,24 @@ class _$RiskMapEntryImpl implements _RiskMapEntry {
       required this.riskLevel,
       required this.riskScore,
       final Map<String, double> cropYields = const {},
+      this.selectedCrop = '',
+      this.selectedYear,
+      this.yieldTAcre,
+      this.productionTons,
+      this.rainfallMm,
+      this.yieldChangePct,
+      this.dataAvailable = true,
+      this.dataSource = '',
+      final List<String> weatherRisks = const [],
+      final List<String> cropRisks = const [],
+      this.aiExplanation = '',
+      final List<String> limitations = const [],
       this.ndvi = 0.0,
       this.alertCount = 0})
-      : _cropYields = cropYields;
+      : _cropYields = cropYields,
+        _weatherRisks = weatherRisks,
+        _cropRisks = cropRisks,
+        _limitations = limitations;
 
   factory _$RiskMapEntryImpl.fromJson(Map<String, dynamic> json) =>
       _$$RiskMapEntryImplFromJson(json);
@@ -241,6 +412,55 @@ class _$RiskMapEntryImpl implements _RiskMapEntry {
     return EqualUnmodifiableMapView(_cropYields);
   }
 
+  @override
+  @JsonKey()
+  final String selectedCrop;
+  @override
+  final int? selectedYear;
+  @override
+  final double? yieldTAcre;
+  @override
+  final double? productionTons;
+  @override
+  final double? rainfallMm;
+  @override
+  final double? yieldChangePct;
+  @override
+  @JsonKey()
+  final bool dataAvailable;
+  @override
+  @JsonKey()
+  final String dataSource;
+  final List<String> _weatherRisks;
+  @override
+  @JsonKey()
+  List<String> get weatherRisks {
+    if (_weatherRisks is EqualUnmodifiableListView) return _weatherRisks;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_weatherRisks);
+  }
+
+  final List<String> _cropRisks;
+  @override
+  @JsonKey()
+  List<String> get cropRisks {
+    if (_cropRisks is EqualUnmodifiableListView) return _cropRisks;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_cropRisks);
+  }
+
+  @override
+  @JsonKey()
+  final String aiExplanation;
+  final List<String> _limitations;
+  @override
+  @JsonKey()
+  List<String> get limitations {
+    if (_limitations is EqualUnmodifiableListView) return _limitations;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_limitations);
+  }
+
 // Current NDVI for quick display on map tooltip
   @override
   @JsonKey()
@@ -252,7 +472,7 @@ class _$RiskMapEntryImpl implements _RiskMapEntry {
 
   @override
   String toString() {
-    return 'RiskMapEntry(district: $district, districtName: $districtName, province: $province, riskLevel: $riskLevel, riskScore: $riskScore, cropYields: $cropYields, ndvi: $ndvi, alertCount: $alertCount)';
+    return 'RiskMapEntry(district: $district, districtName: $districtName, province: $province, riskLevel: $riskLevel, riskScore: $riskScore, cropYields: $cropYields, selectedCrop: $selectedCrop, selectedYear: $selectedYear, yieldTAcre: $yieldTAcre, productionTons: $productionTons, rainfallMm: $rainfallMm, yieldChangePct: $yieldChangePct, dataAvailable: $dataAvailable, dataSource: $dataSource, weatherRisks: $weatherRisks, cropRisks: $cropRisks, aiExplanation: $aiExplanation, limitations: $limitations, ndvi: $ndvi, alertCount: $alertCount)';
   }
 
   @override
@@ -272,6 +492,30 @@ class _$RiskMapEntryImpl implements _RiskMapEntry {
                 other.riskScore == riskScore) &&
             const DeepCollectionEquality()
                 .equals(other._cropYields, _cropYields) &&
+            (identical(other.selectedCrop, selectedCrop) ||
+                other.selectedCrop == selectedCrop) &&
+            (identical(other.selectedYear, selectedYear) ||
+                other.selectedYear == selectedYear) &&
+            (identical(other.yieldTAcre, yieldTAcre) ||
+                other.yieldTAcre == yieldTAcre) &&
+            (identical(other.productionTons, productionTons) ||
+                other.productionTons == productionTons) &&
+            (identical(other.rainfallMm, rainfallMm) ||
+                other.rainfallMm == rainfallMm) &&
+            (identical(other.yieldChangePct, yieldChangePct) ||
+                other.yieldChangePct == yieldChangePct) &&
+            (identical(other.dataAvailable, dataAvailable) ||
+                other.dataAvailable == dataAvailable) &&
+            (identical(other.dataSource, dataSource) ||
+                other.dataSource == dataSource) &&
+            const DeepCollectionEquality()
+                .equals(other._weatherRisks, _weatherRisks) &&
+            const DeepCollectionEquality()
+                .equals(other._cropRisks, _cropRisks) &&
+            (identical(other.aiExplanation, aiExplanation) ||
+                other.aiExplanation == aiExplanation) &&
+            const DeepCollectionEquality()
+                .equals(other._limitations, _limitations) &&
             (identical(other.ndvi, ndvi) || other.ndvi == ndvi) &&
             (identical(other.alertCount, alertCount) ||
                 other.alertCount == alertCount));
@@ -279,16 +523,29 @@ class _$RiskMapEntryImpl implements _RiskMapEntry {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      district,
-      districtName,
-      province,
-      riskLevel,
-      riskScore,
-      const DeepCollectionEquality().hash(_cropYields),
-      ndvi,
-      alertCount);
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        district,
+        districtName,
+        province,
+        riskLevel,
+        riskScore,
+        const DeepCollectionEquality().hash(_cropYields),
+        selectedCrop,
+        selectedYear,
+        yieldTAcre,
+        productionTons,
+        rainfallMm,
+        yieldChangePct,
+        dataAvailable,
+        dataSource,
+        const DeepCollectionEquality().hash(_weatherRisks),
+        const DeepCollectionEquality().hash(_cropRisks),
+        aiExplanation,
+        const DeepCollectionEquality().hash(_limitations),
+        ndvi,
+        alertCount
+      ]);
 
   @JsonKey(ignore: true)
   @override
@@ -312,6 +569,18 @@ abstract class _RiskMapEntry implements RiskMapEntry {
       required final RiskLevel riskLevel,
       required final double riskScore,
       final Map<String, double> cropYields,
+      final String selectedCrop,
+      final int? selectedYear,
+      final double? yieldTAcre,
+      final double? productionTons,
+      final double? rainfallMm,
+      final double? yieldChangePct,
+      final bool dataAvailable,
+      final String dataSource,
+      final List<String> weatherRisks,
+      final List<String> cropRisks,
+      final String aiExplanation,
+      final List<String> limitations,
       final double ndvi,
       final int alertCount}) = _$RiskMapEntryImpl;
 
@@ -331,6 +600,30 @@ abstract class _RiskMapEntry implements RiskMapEntry {
   @override // Yield forecasts per crop: { "wheat": 2.3, "rice": 1.8, ... }
 // Using Map<String, double> because crops may vary by district
   Map<String, double> get cropYields;
+  @override
+  String get selectedCrop;
+  @override
+  int? get selectedYear;
+  @override
+  double? get yieldTAcre;
+  @override
+  double? get productionTons;
+  @override
+  double? get rainfallMm;
+  @override
+  double? get yieldChangePct;
+  @override
+  bool get dataAvailable;
+  @override
+  String get dataSource;
+  @override
+  List<String> get weatherRisks;
+  @override
+  List<String> get cropRisks;
+  @override
+  String get aiExplanation;
+  @override
+  List<String> get limitations;
   @override // Current NDVI for quick display on map tooltip
   double get ndvi;
   @override // Number of active alerts for this district
@@ -356,6 +649,10 @@ mixin _$RiskMapResponse {
   int get criticalCount => throw _privateConstructorUsedError;
   int get highCount => throw _privateConstructorUsedError;
   int get watchCount => throw _privateConstructorUsedError;
+  String get selectedCrop => throw _privateConstructorUsedError;
+  int? get selectedYear => throw _privateConstructorUsedError;
+  String get yearRange => throw _privateConstructorUsedError;
+  String get dataSource => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -375,7 +672,11 @@ abstract class $RiskMapResponseCopyWith<$Res> {
       String nationalRiskLevel,
       int criticalCount,
       int highCount,
-      int watchCount});
+      int watchCount,
+      String selectedCrop,
+      int? selectedYear,
+      String yearRange,
+      String dataSource});
 }
 
 /// @nodoc
@@ -397,6 +698,10 @@ class _$RiskMapResponseCopyWithImpl<$Res, $Val extends RiskMapResponse>
     Object? criticalCount = null,
     Object? highCount = null,
     Object? watchCount = null,
+    Object? selectedCrop = null,
+    Object? selectedYear = freezed,
+    Object? yearRange = null,
+    Object? dataSource = null,
   }) {
     return _then(_value.copyWith(
       districts: null == districts
@@ -423,6 +728,22 @@ class _$RiskMapResponseCopyWithImpl<$Res, $Val extends RiskMapResponse>
           ? _value.watchCount
           : watchCount // ignore: cast_nullable_to_non_nullable
               as int,
+      selectedCrop: null == selectedCrop
+          ? _value.selectedCrop
+          : selectedCrop // ignore: cast_nullable_to_non_nullable
+              as String,
+      selectedYear: freezed == selectedYear
+          ? _value.selectedYear
+          : selectedYear // ignore: cast_nullable_to_non_nullable
+              as int?,
+      yearRange: null == yearRange
+          ? _value.yearRange
+          : yearRange // ignore: cast_nullable_to_non_nullable
+              as String,
+      dataSource: null == dataSource
+          ? _value.dataSource
+          : dataSource // ignore: cast_nullable_to_non_nullable
+              as String,
     ) as $Val);
   }
 }
@@ -441,7 +762,11 @@ abstract class _$$RiskMapResponseImplCopyWith<$Res>
       String nationalRiskLevel,
       int criticalCount,
       int highCount,
-      int watchCount});
+      int watchCount,
+      String selectedCrop,
+      int? selectedYear,
+      String yearRange,
+      String dataSource});
 }
 
 /// @nodoc
@@ -461,6 +786,10 @@ class __$$RiskMapResponseImplCopyWithImpl<$Res>
     Object? criticalCount = null,
     Object? highCount = null,
     Object? watchCount = null,
+    Object? selectedCrop = null,
+    Object? selectedYear = freezed,
+    Object? yearRange = null,
+    Object? dataSource = null,
   }) {
     return _then(_$RiskMapResponseImpl(
       districts: null == districts
@@ -487,6 +816,22 @@ class __$$RiskMapResponseImplCopyWithImpl<$Res>
           ? _value.watchCount
           : watchCount // ignore: cast_nullable_to_non_nullable
               as int,
+      selectedCrop: null == selectedCrop
+          ? _value.selectedCrop
+          : selectedCrop // ignore: cast_nullable_to_non_nullable
+              as String,
+      selectedYear: freezed == selectedYear
+          ? _value.selectedYear
+          : selectedYear // ignore: cast_nullable_to_non_nullable
+              as int?,
+      yearRange: null == yearRange
+          ? _value.yearRange
+          : yearRange // ignore: cast_nullable_to_non_nullable
+              as String,
+      dataSource: null == dataSource
+          ? _value.dataSource
+          : dataSource // ignore: cast_nullable_to_non_nullable
+              as String,
     ));
   }
 }
@@ -500,7 +845,11 @@ class _$RiskMapResponseImpl implements _RiskMapResponse {
       this.nationalRiskLevel = 'good',
       this.criticalCount = 0,
       this.highCount = 0,
-      this.watchCount = 0})
+      this.watchCount = 0,
+      this.selectedCrop = '',
+      this.selectedYear,
+      this.yearRange = '',
+      this.dataSource = ''})
       : _districts = districts;
 
   factory _$RiskMapResponseImpl.fromJson(Map<String, dynamic> json) =>
@@ -532,10 +881,21 @@ class _$RiskMapResponseImpl implements _RiskMapResponse {
   @override
   @JsonKey()
   final int watchCount;
+  @override
+  @JsonKey()
+  final String selectedCrop;
+  @override
+  final int? selectedYear;
+  @override
+  @JsonKey()
+  final String yearRange;
+  @override
+  @JsonKey()
+  final String dataSource;
 
   @override
   String toString() {
-    return 'RiskMapResponse(districts: $districts, generatedAt: $generatedAt, nationalRiskLevel: $nationalRiskLevel, criticalCount: $criticalCount, highCount: $highCount, watchCount: $watchCount)';
+    return 'RiskMapResponse(districts: $districts, generatedAt: $generatedAt, nationalRiskLevel: $nationalRiskLevel, criticalCount: $criticalCount, highCount: $highCount, watchCount: $watchCount, selectedCrop: $selectedCrop, selectedYear: $selectedYear, yearRange: $yearRange, dataSource: $dataSource)';
   }
 
   @override
@@ -554,7 +914,15 @@ class _$RiskMapResponseImpl implements _RiskMapResponse {
             (identical(other.highCount, highCount) ||
                 other.highCount == highCount) &&
             (identical(other.watchCount, watchCount) ||
-                other.watchCount == watchCount));
+                other.watchCount == watchCount) &&
+            (identical(other.selectedCrop, selectedCrop) ||
+                other.selectedCrop == selectedCrop) &&
+            (identical(other.selectedYear, selectedYear) ||
+                other.selectedYear == selectedYear) &&
+            (identical(other.yearRange, yearRange) ||
+                other.yearRange == yearRange) &&
+            (identical(other.dataSource, dataSource) ||
+                other.dataSource == dataSource));
   }
 
   @JsonKey(ignore: true)
@@ -566,7 +934,11 @@ class _$RiskMapResponseImpl implements _RiskMapResponse {
       nationalRiskLevel,
       criticalCount,
       highCount,
-      watchCount);
+      watchCount,
+      selectedCrop,
+      selectedYear,
+      yearRange,
+      dataSource);
 
   @JsonKey(ignore: true)
   @override
@@ -590,7 +962,11 @@ abstract class _RiskMapResponse implements RiskMapResponse {
       final String nationalRiskLevel,
       final int criticalCount,
       final int highCount,
-      final int watchCount}) = _$RiskMapResponseImpl;
+      final int watchCount,
+      final String selectedCrop,
+      final int? selectedYear,
+      final String yearRange,
+      final String dataSource}) = _$RiskMapResponseImpl;
 
   factory _RiskMapResponse.fromJson(Map<String, dynamic> json) =
       _$RiskMapResponseImpl.fromJson;
@@ -607,6 +983,14 @@ abstract class _RiskMapResponse implements RiskMapResponse {
   int get highCount;
   @override
   int get watchCount;
+  @override
+  String get selectedCrop;
+  @override
+  int? get selectedYear;
+  @override
+  String get yearRange;
+  @override
+  String get dataSource;
   @override
   @JsonKey(ignore: true)
   _$$RiskMapResponseImplCopyWith<_$RiskMapResponseImpl> get copyWith =>

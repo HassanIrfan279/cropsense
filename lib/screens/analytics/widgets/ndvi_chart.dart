@@ -23,7 +23,7 @@ class NdviChart extends StatelessWidget {
           gridData: FlGridData(
             show: true,
             drawVerticalLine: false,
-            getDrawingHorizontalLine: (_) => FlLine(
+            getDrawingHorizontalLine: (_) => const FlLine(
               color: AppColors.grey200,
               strokeWidth: 1,
             ),
@@ -35,7 +35,8 @@ class NdviChart extends StatelessWidget {
                 reservedSize: 40,
                 getTitlesWidget: (v, _) => Text(
                   v.toStringAsFixed(2),
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF757575)),
+                  style:
+                      const TextStyle(fontSize: 10, color: Color(0xFF757575)),
                 ),
               ),
             ),
@@ -46,14 +47,17 @@ class NdviChart extends StatelessWidget {
                 getTitlesWidget: (v, _) {
                   final yr = 2005 + v.toInt();
                   return Text(
-                    '\$yr',
-                    style: const TextStyle(fontSize: 10, color: Color(0xFF757575)),
+                    '$yr',
+                    style:
+                        const TextStyle(fontSize: 10, color: Color(0xFF757575)),
                   );
                 },
               ),
             ),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           borderData: FlBorderData(show: false),
           lineBarsData: [
@@ -79,10 +83,12 @@ class NdviChart extends StatelessWidget {
           ],
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
-              getTooltipItems: (spots) => spots.map((s) => LineTooltipItem(
-                'NDVI: \${s.y.toStringAsFixed(3)}\n\${2005 + s.x.toInt()}',
-                const TextStyle(color: Colors.white, fontSize: 12),
-              )).toList(),
+              getTooltipItems: (spots) => spots
+                  .map((s) => LineTooltipItem(
+                        'NDVI: ${s.y.toStringAsFixed(3)}\n${2005 + s.x.toInt()}',
+                        const TextStyle(color: Colors.white, fontSize: 12),
+                      ))
+                  .toList(),
             ),
           ),
         ),
@@ -110,16 +116,10 @@ class _ChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: AppGradients.cardSubtle,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEEEEEE)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
+        boxShadow: AppShadows.card,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -140,13 +140,17 @@ class _ChartCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1A1A),
-                    )),
-                    Text(subtitle, style: const TextStyle(
-                      fontSize: 11, color: Color(0xFF757575),
-                    )),
+                    Text(title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1A1A1A),
+                        )),
+                    Text(subtitle,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF757575),
+                        )),
                   ],
                 ),
               ),

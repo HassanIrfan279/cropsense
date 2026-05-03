@@ -35,8 +35,8 @@ dependencies:
   fl_chart: ^1.2.0               # Line, bar, scatter, pie charts
 
   # ── Maps ──────────────────────────────────────────────────────
-  flutter_map: ^8.3.0             # Leaflet.js wrapper for Flutter
-  latlong2: ^0.9.1                # LatLng coordinates (required by flutter_map)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1            # LatLng coordinates (required by flutter_map)
 
   # ── Animation ─────────────────────────────────────────────────
   flutter_animate: ^4.5.0         # Declarative animations for cards, counters
@@ -52,7 +52,6 @@ dependencies:
   connectivity_plus: ^7.1.1       # Detect online/offline state
 
   # ── Environment Variables ─────────────────────────────────────
-  flutter_dotenv: ^6.0.1          # Read .env file (API base URL, keys)
 
   # ── Shimmer Loading ───────────────────────────────────────────
   shimmer: ^3.0.0                 # Skeleton loading placeholders
@@ -66,6 +65,7 @@ dependencies:
   equatable: ^2.0.5               # Value equality for Dart objects
   logger: ^2.3.0                  # Clean, colored console logs
   uuid: ^4.4.0                    # Generate unique IDs
+  image_picker: ^1.1.2            # Pick images from gallery (web + desktop)
 
 dev_dependencies:
   flutter_test:
@@ -86,7 +86,6 @@ flutter:
   assets:
     - assets/geojson/             # Pakistan districts GeoJSON map data
     - assets/images/              # Logo and static images
-    - .env                        # Environment variables file
 
   # ── Fonts ─────────────────────────────────────────────────────
   # Using google_fonts package — no manual font files needed

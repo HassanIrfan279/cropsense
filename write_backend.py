@@ -8,7 +8,7 @@ gt = chr(62)
 
 # ── backend/.env ──────────────────────────────────────────────────────
 env = """ORACLE_USER=system
-ORACLE_PASSWORD=CropSense123
+ORACLE_PASSWORD=replace_with_oracle_password
 ORACLE_HOST=localhost
 ORACLE_PORT=1521
 ORACLE_SERVICE=XEPDB1
@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ORACLE_USER = os.getenv('ORACLE_USER', 'system')
-ORACLE_PASSWORD = os.getenv('ORACLE_PASSWORD', 'CropSense123')
+ORACLE_PASSWORD = os.getenv('ORACLE_PASSWORD', '')
 ORACLE_HOST = os.getenv('ORACLE_HOST', 'localhost')
 ORACLE_PORT = os.getenv('ORACLE_PORT', '1521')
 ORACLE_SERVICE = os.getenv('ORACLE_SERVICE', 'XEPDB1')

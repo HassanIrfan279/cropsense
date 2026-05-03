@@ -48,7 +48,8 @@ class KpiCard extends StatelessWidget {
             children: [
               Row(children: [
                 Container(
-                  width: 38, height: 38,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.22),
                     borderRadius: BorderRadius.circular(10),
@@ -58,7 +59,8 @@ class KpiCard extends StatelessWidget {
                 const Spacer(),
                 if (isAlert)
                   Container(
-                    width: 10, height: 10,
+                    width: 10,
+                    height: 10,
                     decoration: BoxDecoration(
                       color: AppColors.amber,
                       shape: BoxShape.circle,
@@ -73,18 +75,18 @@ class KpiCard extends StatelessWidget {
                   )
                       .animate(onPlay: (c) => c.repeat())
                       .scaleXY(
-                          begin: 1.0, end: 1.6,
-                          duration: 800.ms, curve: Curves.easeInOut)
+                          begin: 1.0,
+                          end: 1.6,
+                          duration: 800.ms,
+                          curve: Curves.easeInOut)
                       .then()
                       .scaleXY(begin: 1.6, end: 1.0, duration: 800.ms),
               ]),
-
               const SizedBox(height: AppSpacing.md),
-
               Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text(value,
-                    style: AppTextStyles.kpiNumber
-                        .copyWith(color: Colors.white, letterSpacing: -1.2))
+                        style: AppTextStyles.kpiNumber
+                            .copyWith(color: Colors.white, letterSpacing: 0))
                     .animate()
                     .fadeIn(duration: 600.ms)
                     .slideY(begin: 0.3, end: 0, duration: 500.ms),
@@ -93,16 +95,14 @@ class KpiCard extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: Text(unit,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: Colors.white60, fontSize: 13)),
+                        style: AppTextStyles.bodySmall
+                            .copyWith(color: Colors.white60, fontSize: 13)),
                   ),
                 ],
               ]),
-
               const SizedBox(height: 4),
               Text(label,
                   style: AppTextStyles.label.copyWith(color: Colors.white70)),
-
               if (subtitle != null) ...[
                 const SizedBox(height: 4),
                 Text(subtitle!,

@@ -14,10 +14,10 @@ class MapLegend extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
+        gradient: AppGradients.cardSubtle,
         borderRadius: AppRadius.cardRadius,
         boxShadow: AppShadows.card,
-        border: Border.all(color: AppColors.grey200),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.72)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,10 +56,10 @@ class MapLegend extends StatelessWidget {
 
   // (label, color) pairs for each risk level
   static const _legendItems = [
-    ('Good',         AppColors.riskGood),
-    ('Above Average',AppColors.riskAbove),
-    ('Watch',        AppColors.riskWatch),
-    ('High Risk',    AppColors.riskHigh),
-    ('Critical',     AppColors.riskCritical),
+    ('Good', AppColors.riskGood),
+    ('Above Average', AppColors.riskAbove),
+    ('Watch', AppColors.riskWatch),
+    ('High Risk', AppColors.riskHigh),
+    ('Critical', AppColors.riskCritical),
   ];
 }
